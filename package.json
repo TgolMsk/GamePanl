@@ -1,0 +1,97 @@
+{
+  "name": "gamepanl",
+  "productName": "GamePanl",
+  "version": "0.1.0",
+  "description": "游戏策划工作台：全局图片素材、提示词、风格，以及每个游戏项目的配置、构思和资料",
+  "author": "TgolMsk",
+  "homepage": "https://github.com/TgolMsk/GamePanl",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TgolMsk/GamePanl.git"
+  },
+  "keywords": [
+    "game-development",
+    "game-design",
+    "indie-game",
+    "gamedev",
+    "planning",
+    "notes",
+    "asset-management",
+    "reference-images",
+    "ai-prompts",
+    "prompt-library",
+    "art-style",
+    "electron",
+    "react",
+    "typescript",
+    "macos"
+  ],
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dist": "electron-vite build && electron-builder --mac",
+    "dist:dir": "electron-vite build && electron-builder --mac --dir"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  },
+  "build": {
+    "appId": "com.tgolmsk.gamepanl",
+    "productName": "GamePanl",
+    "copyright": "Copyright © 2026 TgolMsk",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "GamePanl"
+    }
+  }
+}

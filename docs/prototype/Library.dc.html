@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>全局库</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#d9d9de}
+.app{--win:#ffffff;--side:#ececf0;--bg2:#f5f5f7;--card:#ffffff;--fill:rgba(118,118,128,.14);--fill2:rgba(118,118,128,.09);--sep:rgba(60,60,67,.16);--tx:#1d1d1f;--tx2:#5f5f64;--tx3:#aeaeb2;--sel:rgba(0,0,0,.075);--ok:#248a3d;--chk1:#ffffff;--chk2:#ececef;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Helvetica Neue",sans-serif;font-size:13px;line-height:1.45;color:var(--tx);-webkit-font-smoothing:antialiased}
+.app.dark{--win:#1e1e20;--side:#28282b;--bg2:#161618;--card:#2a2a2d;--fill:rgba(118,118,128,.26);--fill2:rgba(118,118,128,.16);--sep:rgba(255,255,255,.1);--tx:#f5f5f7;--tx2:#a8a8ad;--tx3:#636366;--sel:rgba(255,255,255,.1);--ok:#30d158;--chk1:#2a2a2d;--chk2:#333336}
+.app *{box-sizing:border-box}
+.mono{font-family:"SF Mono",ui-monospace,Menlo,monospace}
+.btn{height:28px;padding:0 12px;border-radius:6px;border:.5px solid var(--sep);background:var(--card);color:var(--tx);font:inherit;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--bg2)}
+.btn.pri{background:var(--acc);border-color:transparent;color:#fff;font-weight:500}
+.btn.pri:hover{filter:brightness(1.07)}
+.btn.plain{background:transparent;border-color:transparent;color:var(--acc)}
+.tbtn{width:30px;height:28px;border-radius:6px;border:0;background:transparent;color:var(--tx2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.tbtn:hover{background:var(--fill2);color:var(--tx)}
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--fill2);gap:2px}
+.seg button{height:24px;padding:0 12px;border-radius:6px;border:.5px solid transparent;background:transparent;color:var(--tx);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--card);border-color:var(--sep);font-weight:500}
+.search{height:28px;width:220px;border-radius:7px;background:var(--fill2);color:var(--tx2);display:inline-flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;border:0}
+.nv{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 8px;border-radius:6px;border:0;background:transparent;color:var(--tx);font:inherit;font-size:13px;text-decoration:none;cursor:pointer;text-align:left}
+.nv:hover{background:var(--fill2)}
+.nv.on{background:var(--sel);font-weight:600}
+.nv .ic{color:var(--acc);display:inline-flex;width:18px;justify-content:center}
+.nv .n{margin-left:auto;font-size:12px;color:var(--tx2);font-weight:400}
+.nv.sub{padding-left:30px}
+.sec{font-size:11px;font-weight:600;color:var(--tx2);padding:14px 10px 4px}
+.group{background:var(--card);border:.5px solid var(--sep);border-radius:10px;overflow:hidden}
+.rowi{display:flex;align-items:center;gap:12px;min-height:40px;padding:8px 14px;border-top:.5px solid var(--sep)}
+.rowi:first-child{border-top:0}
+.rowi .k{width:120px;flex:none;color:var(--tx)}
+.gh{font-size:13px;font-weight:600;color:var(--tx);padding:0 4px 6px}
+.lbl{font-size:12px;color:var(--tx2)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--fill2);color:var(--tx2);font-size:12px;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;border-radius:13px;border:.5px solid var(--sep);background:var(--card);color:var(--tx);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.chip.on{background:var(--acc);border-color:transparent;color:#fff}
+.fld{width:100%;height:28px;border-radius:6px;border:.5px solid var(--sep);background:var(--card);color:var(--tx);padding:0 8px;font:inherit;font-size:13px;outline:none}
+.fld:focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 28%,transparent)}
+textarea.fld{height:auto;padding:6px 8px;resize:none;line-height:1.5}
+.ph{display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.55);width:100%;height:100%}
+.checker{background-color:var(--chk1);background-image:conic-gradient(var(--chk2) 25%,transparent 0 50%,var(--chk2) 0 75%,transparent 0);background-size:14px 14px}
+.card{position:relative}
+.hit{display:block;width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:copy}
+.hit .frame{position:relative;border-radius:8px;overflow:hidden;background:var(--fill2)}
+.hit .pill{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);height:22px;padding:0 9px;border-radius:11px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;display:flex;align-items:center;gap:4px;opacity:0;white-space:nowrap}
+.hit:hover .pill{opacity:1}
+.card.sel .frame{box-shadow:0 0 0 3px var(--acc)}
+.eye{position:absolute;right:8px;top:8px;width:26px;height:26px;border-radius:13px;border:0;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;opacity:0}
+.card:hover .eye{opacity:1}
+.done{position:absolute;left:8px;top:8px;height:22px;padding:0 8px;border-radius:11px;background:var(--acc);color:#fff;font-size:11px;display:flex;align-items:center;gap:4px}
+.cap{font-size:13px;color:var(--tx);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:11px;color:var(--tx2)}
+.hud{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);height:36px;padding:0 16px;border-radius:18px;background:rgba(28,28,30,.9);color:#fff;font-size:13px;display:flex;align-items:center;gap:8px;z-index:80;white-space:nowrap}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.28);z-index:60}
+.sheet{position:absolute;z-index:61;background:var(--win);border:.5px solid var(--sep);border-radius:12px}
+.lib{position:relative;flex:1;min-width:0;overflow:hidden;background:var(--win)}
+.lib.tint{background:var(--bg2)}
+.srch{flex:1;min-width:0;height:100%;border:0;outline:none;background:transparent;color:var(--tx);font:inherit;font-size:13px;padding:0}
+.srch::placeholder{color:var(--tx3)}
+.clr{width:16px;height:16px;flex:none;border-radius:8px;border:0;padding:0;background:var(--tx3);color:var(--win);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.seg button.ico{padding:0 9px;display:inline-flex;align-items:center;color:var(--tx2)}
+.seg button.ico.on{color:var(--tx)}
+.hit .frame.pc{height:100%;padding:14px 16px;display:flex;flex-direction:column;background:var(--card);border:.5px solid var(--sep);border-radius:10px}
+.hit .frame.sc{height:100%;display:flex;flex-direction:column;background:var(--card);border:.5px solid var(--sep);border-radius:10px}
+.pt{font-size:13px;font-weight:600;line-height:19px;padding-right:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb{margin-top:4px;font-size:12px;line-height:18px;color:var(--tx2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.pf{display:flex;align-items:center;gap:8px;margin-top:10px}
+.dot{width:7px;height:7px;border-radius:4px;flex:none}
+.eye.soft{background:var(--fill);color:var(--tx)}
+.sn{font-size:13px;font-weight:600;line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sd{font-size:12px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw5{width:18px;height:18px;border-radius:5px;border:.5px solid var(--sep);flex:none}
+.lc{display:grid;grid-template-columns:32px minmax(0,1.4fr) 64px 128px minmax(0,1.6fr) 84px;column-gap:14px;align-items:center;padding:0 48px 0 8px}
+.lhd{height:28px;flex:none;font-size:12px;color:var(--tx2);border-bottom:.5px solid var(--sep);margin-bottom:4px}
+.lr{position:relative;height:44px;flex:none;border-radius:6px}
+.lr.alt{background:var(--fill2)}
+.lr.sel{background:var(--acc);color:#fff}
+.lb{width:100%;height:100%;border:0;background:transparent;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:copy;border-radius:6px}
+.lt{width:32px;height:32px;border-radius:5px;overflow:hidden;display:block;background:var(--fill2)}
+.ln{display:flex;align-items:center;gap:8px;min-width:0}
+.ln .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lm{font-size:12px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lg{display:flex;gap:4px;overflow:hidden}
+.lr.sel .lm{color:rgba(255,255,255,.88)}
+.lr.sel .tag{background:rgba(255,255,255,.2);color:#fff}
+.lr.sel .done{background:#fff;color:var(--acc)}
+.lr .le{position:absolute;right:8px;top:8px;opacity:0}
+.lr:hover .le,.lr.sel .le{opacity:1}
+.lr.sel .le{color:#fff}
+.lr.sel .le:hover{background:rgba(255,255,255,.18);color:#fff}
+.shead{height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px 0 20px;border-bottom:.5px solid var(--sep)}
+.stt{font-size:15px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sfoot{height:60px;flex:none;display:flex;align-items:center;gap:8px;padding:0 20px;border-top:.5px solid var(--sep)}
+.rv{margin-left:auto;color:var(--tx2);text-align:right}
+.plink{color:var(--acc);text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.swb{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding:0;border:0;background:transparent;color:var(--tx2);font:inherit;font-size:11px;cursor:copy;text-align:left}
+.swb .c{height:44px;border-radius:8px;border:.5px solid var(--sep)}
+.swb:hover{color:var(--tx)}
+.drop{height:100%;border-radius:10px;border:1px dashed var(--tx3);background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;outline:none;color:var(--tx)}
+.drop.on,.drop:focus-visible{border-color:var(--acc)}
+.drop.on{background:color-mix(in srgb,var(--acc) 8%,var(--bg2))}
+.hit .frame.pc .pill{bottom:14px}
+.eye:focus-visible,.lr .le:focus-visible{opacity:1}
+.app.dark{color-scheme:dark}
+</style>
+</helmet>
+<div class="{{appCls}}" style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: var(--win); --acc: {{accent}}">
+<div style="width: 1440px; height: 900px; display: flex">
+
+  <nav aria-label="侧栏" style="width: 232px; flex: none; background: var(--side); border-right: .5px solid var(--sep); padding: 0 10px 12px; display: flex; flex-direction: column; gap: 1px">
+    <div style="height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding-left: 8px">
+      <span style="width: 12px; height: 12px; border-radius: 6px; background: #ff5f57"></span>
+      <span style="width: 12px; height: 12px; border-radius: 6px; background: #febc2e"></span>
+      <span style="width: 12px; height: 12px; border-radius: 6px; background: #28c840"></span>
+    </div>
+    <div class="sec">全局库</div>
+    <button class="{{navImg}}" onClick="{{goImg}}"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg></span>图片素材<span class="n">{{nImg}}</span></button>
+    <button class="{{navPrompt}}" onClick="{{goPrompt}}"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M5 6.5h14M5 11.5h14M5 16.5h9"></path></svg></span>提示词<span class="n">{{nPrompt}}</span></button>
+    <button class="{{navStyle}}" onClick="{{goStyle}}"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7s-.6-1.3-.6-2.1c0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4c0-4.7-4-8.6-9-8.6z"></path><circle cx="7.5" cy="11" r="1"></circle><circle cx="10" cy="7" r="1"></circle><circle cx="14.5" cy="7" r="1"></circle></svg></span>风格<span class="n">9</span></button>
+    <div class="sec">项目</div>
+    <a class="nv" href="Config.dc.html"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="7.5" width="19" height="10" rx="5"></rect><path d="M8 10.5v4M6 12.5h4"></path><circle cx="15.5" cy="11.5" r=".9"></circle><circle cx="17.5" cy="13.5" r=".9"></circle></svg></span>雾港</a>
+    <a class="nv sub" href="Config.dc.html"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg></span>配置</a>
+    <a class="nv sub" href="Notes.dc.html"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M9.5 18h5M10.5 21h3M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1v.1h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"></path></svg></span>构思<span class="n">9</span></a>
+    <a class="nv sub" href="Assets.dc.html"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="8" width="16" height="12" rx="2.5"></rect><path d="M7 5.2h10M9.5 2.6h5"></path></svg></span>资料<span class="n">24</span></a>
+    <a class="nv" href="Config.dc.html"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="7.5" width="19" height="10" rx="5"></rect><path d="M8 10.5v4M6 12.5h4"></path><circle cx="15.5" cy="11.5" r=".9"></circle><circle cx="17.5" cy="13.5" r=".9"></circle></svg></span>猫咪快递</a>
+    <a class="nv" href="Config.dc.html"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="7.5" width="19" height="10" rx="5"></rect><path d="M8 10.5v4M6 12.5h4"></path><circle cx="15.5" cy="11.5" r=".9"></circle><circle cx="17.5" cy="13.5" r=".9"></circle></svg></span>灯塔（旧）</a>
+    <div style="flex: 1"></div>
+    <button class="nv" style="color: var(--tx2)"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M12 5v14M5 12h14"></path></svg></span>新建项目</button>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--win)">
+
+    <div style="height: 52px; flex: none; border-bottom: .5px solid var(--sep); padding: 0 16px 0 20px; display: flex; align-items: center; gap: 10px">
+      <div style="display: flex; flex-direction: column; min-width: 0">
+        <div style="font-size: 15px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">全局库</div>
+        <div style="font-size: 12px; color: var(--tx2); line-height: 1.3">{{subtitle}}</div>
+      </div>
+      <div style="flex: 1"></div>
+      <sc-if value="{{hasSeg}}" hint-placeholder-val="{{ true }}">
+        <div class="seg" role="group" aria-label="分类">
+          <sc-for list="{{segs}}" as="g" hint-placeholder-count="8"><button class="{{g.cls}}" onClick="{{g.pick}}">{{g.label}}</button></sc-for>
+        </div>
+      </sc-if>
+      <div class="search">
+        <label for="lib-q" style="display: inline-flex; color: var(--tx2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4-4"></path></svg></label>
+        <input id="lib-q" class="srch" type="text" aria-label="搜索" placeholder="{{qPh}}" value="{{q}}" onChange="{{setQ}}" onKeyDown="{{qKey}}">
+        <sc-if value="{{hasQ}}" hint-placeholder-val="{{ false }}">
+          <button class="clr" aria-label="清除搜索" onClick="{{clearQ}}"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </sc-if>
+      </div>
+      <sc-if value="{{isImg}}" hint-placeholder-val="{{ true }}">
+        <div class="seg" role="group" aria-label="显示方式">
+          <button class="{{gridCls}}" aria-label="网格" onClick="{{toGrid}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5"></rect></svg></button>
+          <button class="{{listCls}}" aria-label="列表" onClick="{{toList}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><path d="M9 6.5h11M9 12h11M9 17.5h11"></path><circle cx="5" cy="6.5" r=".9"></circle><circle cx="5" cy="12" r=".9"></circle><circle cx="5" cy="17.5" r=".9"></circle></svg></button>
+        </div>
+      </sc-if>
+      <sc-if value="{{canAdd}}" hint-placeholder-val="{{ true }}">
+        <button class="tbtn" aria-label="{{addLabel}}" onClick="{{plus}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M12 5v14M5 12h14"></path></svg></button>
+      </sc-if>
+    </div>
+
+    <div style="flex: 1; min-height: 0; display: flex">
+      <main class="{{mainCls}}">
+
+        <sc-if value="{{showImgGrid}}" hint-placeholder-val="{{ true }}">
+          <div style="height: 100%; padding: 24px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 20px">
+            <sc-for list="{{gridImgs}}" as="c" hint-placeholder-count="11">
+              <div class="{{c.cardCls}}" style="min-width: 0; min-height: 0">
+                <button class="hit" onClick="{{c.copy}}" style="height: 100%; display: flex; flex-direction: column">
+                  <span class="frame" style="display: block; flex: 1; min-height: 0; width: 100%">
+                    <sc-if value="{{c.hasUrl}}" hint-placeholder-val="{{ false }}"><img src="{{c.url}}" alt="{{c.label}}" style="width:100%;height:100%;object-fit:cover;display:block"></sc-if>
+                    <sc-if value="{{c.noUrl}}" hint-placeholder-val="{{ true }}">
+                      <span class="ph" style="background: {{c.tint}}; flex-direction: column; gap: 6px">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg>
+                        <span style="font-size: 12px; color: rgba(255,255,255,.72)">{{c.label}}</span>
+                      </span>
+                    </sc-if>
+                    <span class="pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><rect x="9" y="9" width="11" height="11" rx="2.5"></rect><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"></path></svg>点击复制</span>
+                  </span>
+                  <span class="cap">{{c.name}}</span>
+                  <span class="meta">{{c.dims}}</span>
+                </button>
+                <button class="eye" aria-label="查看" onClick="{{c.view}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button>
+                <sc-if value="{{c.isDone}}" hint-placeholder-val="{{ false }}">
+                  <span class="done"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>已复制</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{showImgList}}" hint-placeholder-val="{{ false }}">
+          <div style="height: 100%; padding: 8px 16px 0; display: flex; flex-direction: column">
+            <div class="lc lhd">
+              <span></span><span>名称</span><span>分类</span><span>尺寸</span><span>标签</span><span>添加日期</span>
+            </div>
+            <sc-for list="{{listRows}}" as="r" hint-placeholder-count="11">
+              <div class="{{r.rowCls}}">
+                <button class="lb lc" onClick="{{r.copy}}">
+                  <span class="lt">
+                    <sc-if value="{{r.hasUrl}}" hint-placeholder-val="{{ false }}"><img src="{{r.url}}" alt="{{r.label}}" style="width:100%;height:100%;object-fit:cover;display:block"></sc-if>
+                    <sc-if value="{{r.noUrl}}" hint-placeholder-val="{{ true }}">
+                      <span class="ph" style="background: {{r.tint}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg></span>
+                    </sc-if>
+                  </span>
+                  <span class="ln">
+                    <span class="nm">{{r.name}}</span>
+                    <sc-if value="{{r.isDone}}" hint-placeholder-val="{{ false }}">
+                      <span class="done" style="position: static; flex: none"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>已复制</span>
+                    </sc-if>
+                  </span>
+                  <span class="lm">{{r.cat}}</span>
+                  <span class="lm">{{r.dims}}</span>
+                  <span class="lg"><sc-for list="{{r.tags}}" as="t" hint-placeholder-count="2"><span class="tag">{{t}}</span></sc-for></span>
+                  <span class="lm">{{r.date}}</span>
+                </button>
+                <button class="tbtn le" aria-label="查看" onClick="{{r.view}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button>
+              </div>
+            </sc-for>
+            <sc-for list="{{fillRows}}" as="f" hint-placeholder-count="7">
+              <div class="{{f.cls}}" aria-hidden="true"></div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{showPrompts}}" hint-placeholder-val="{{ false }}">
+          <div style="height: 100%; padding: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr)); column-gap: 16px; row-gap: 14px">
+            <sc-for list="{{promptCards}}" as="p" hint-placeholder-count="10">
+              <div class="{{p.cardCls}}" style="min-width: 0; min-height: 0">
+                <button class="hit" onClick="{{p.copy}}" style="height: 100%">
+                  <span class="frame pc">
+                    <span class="pt">{{p.title}}</span>
+                    <span class="pb">{{p.body}}</span>
+                    <span style="flex: 1"></span>
+                    <span class="pf">
+                      <span class="tag" style="gap: 6px"><span class="dot" style="background: {{p.dot}}"></span>{{p.cat}}</span>
+                      <span style="flex: 1"></span>
+                      <span class="meta">{{p.usedText}}</span>
+                    </span>
+                    <span class="pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><rect x="9" y="9" width="11" height="11" rx="2.5"></rect><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"></path></svg>点击复制</span>
+                  </span>
+                </button>
+                <button class="eye soft" aria-label="查看" onClick="{{p.view}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button>
+                <sc-if value="{{p.isDone}}" hint-placeholder-val="{{ false }}">
+                  <span class="done" style="top: auto; bottom: 14px; left: 16px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>已复制</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{showStyles}}" hint-placeholder-val="{{ false }}">
+          <div style="height: 100%; padding: 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 16px">
+            <sc-for list="{{styleCards}}" as="c" hint-placeholder-count="9">
+              <div class="{{c.cardCls}}" style="min-width: 0; min-height: 0">
+                <button class="hit" onClick="{{c.copy}}" style="height: 100%">
+                  <span class="frame sc">
+                    <span style="position: relative; display: block; flex: 1; min-height: 0; overflow: hidden">
+                      <sc-if value="{{c.imgUrl}}" hint-placeholder-val="{{ false }}"><img src="{{c.url}}" alt="{{c.label}}" style="width:100%;height:100%;object-fit:cover;display:block"></sc-if>
+                      <sc-if value="{{c.imgPh}}" hint-placeholder-val="{{ false }}">
+                        <span class="ph" style="background: {{c.tint}}; flex-direction: column; gap: 6px">
+                          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg>
+                          <span style="font-size: 12px; color: rgba(255,255,255,.72)">{{c.label}}</span>
+                        </span>
+                      </sc-if>
+                      <sc-if value="{{c.noImg}}" hint-placeholder-val="{{ true }}">
+                        <span style="display: flex; width: 100%; height: 100%"><sc-for list="{{c.pal}}" as="h" hint-placeholder-count="5"><span style="flex: 1; background: {{h}}"></span></sc-for></span>
+                      </sc-if>
+                      <span class="pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><rect x="9" y="9" width="11" height="11" rx="2.5"></rect><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"></path></svg>点击复制提示词</span>
+                    </span>
+                    <span style="display: block; padding: 11px 14px 12px">
+                      <span class="sn" style="display: block">{{c.name}}</span>
+                      <span class="sd" style="display: block">{{c.desc}}</span>
+                      <span style="display: flex; gap: 4px; margin-top: 9px"><sc-for list="{{c.pal}}" as="h" hint-placeholder-count="5"><span class="sw5" style="background: {{h}}"></span></sc-for></span>
+                    </span>
+                  </span>
+                </button>
+                <button class="eye" aria-label="查看" onClick="{{c.view}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button>
+                <sc-if value="{{c.isDone}}" hint-placeholder-val="{{ false }}">
+                  <span class="done"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>已复制</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isEmpty}}" hint-placeholder-val="{{ false }}">
+          <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding-bottom: 40px">
+            <span style="color: var(--tx3)"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4-4"></path></svg></span>
+            <div style="font-size: 15px; font-weight: 600">{{emptyTitle}}</div>
+            <div style="font-size: 13px; color: var(--tx2)">{{emptyHint}}</div>
+          </div>
+        </sc-if>
+
+      </main>
+    </div>
+  </div>
+</div>
+
+<sc-if value="{{hasQl}}" hint-placeholder-val="{{ false }}">
+  <div class="scrim" onClick="{{closeSheets}}"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="{{ql.name}}" style="left: 250px; top: 150px; width: 940px; height: 600px; display: flex; flex-direction: column; overflow: hidden">
+    <div class="shead">
+      <div style="flex: 1; min-width: 0">
+        <div class="stt">{{ql.name}}</div>
+        <div style="font-size: 12px; color: var(--tx2)">{{ql.sub}}</div>
+      </div>
+      <button class="tbtn" aria-label="关闭" onClick="{{closeSheets}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+    <div style="flex: 1; min-height: 0; display: flex; gap: 20px; padding: 20px">
+      <div style="width: 600px; flex: none; border-radius: 8px; background: var(--bg2); display: flex; align-items: center; justify-content: center; overflow: hidden">
+        <div class="checker" style="width: {{ql.bw}}; height: {{ql.bh}}; border-radius: 4px; overflow: hidden">
+          <sc-if value="{{ql.hasUrl}}" hint-placeholder-val="{{ false }}"><img src="{{ql.url}}" alt="{{ql.label}}" style="width:100%;height:100%;object-fit:cover;display:block"></sc-if>
+          <sc-if value="{{ql.noUrl}}" hint-placeholder-val="{{ true }}">
+            <div class="ph" style="background: {{ql.tint}}; flex-direction: column; gap: 8px">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg>
+              <span style="font-size: 13px; color: rgba(255,255,255,.72)">{{ql.label}}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+        <div class="group">
+          <div class="rowi"><span class="k" style="width: auto">分类</span><span class="rv">{{ql.cat}}</span></div>
+          <div class="rowi"><span class="k" style="width: auto">尺寸</span><span class="rv">{{ql.size}}</span></div>
+          <div class="rowi"><span class="k" style="width: auto">格式</span><span class="rv">{{ql.fmt}}</span></div>
+          <div class="rowi"><span class="k" style="width: auto">添加日期</span><span class="rv">{{ql.date}}</span></div>
+          <div class="rowi">
+            <span class="k" style="width: auto">用于项目</span>
+            <sc-if value="{{ql.hasProj}}" hint-placeholder-val="{{ true }}">
+              <a class="plink rv" href="Config.dc.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="7.5" width="19" height="10" rx="5"></rect><path d="M8 10.5v4M6 12.5h4"></path><circle cx="15.5" cy="11.5" r=".9"></circle><circle cx="17.5" cy="13.5" r=".9"></circle></svg>{{ql.proj}}</a>
+            </sc-if>
+            <sc-if value="{{ql.noProj}}" hint-placeholder-val="{{ false }}"><span class="rv">还没用在项目里</span></sc-if>
+          </div>
+        </div>
+        <div>
+          <div class="gh">标签</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px">
+            <sc-for list="{{ql.tags}}" as="t" hint-placeholder-count="3"><span class="tag">{{t}}</span></sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sfoot">
+      <button class="btn" onClick="{{qlFinder}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"></path></svg>在访达中显示</button>
+      <span style="flex: 1"></span>
+      <button class="btn" onClick="{{closeSheets}}">关闭</button>
+      <button class="btn pri" onClick="{{qlCopy}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><rect x="9" y="9" width="11" height="11" rx="2.5"></rect><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"></path></svg>复制</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{hasPe}}" hint-placeholder-val="{{ false }}">
+  <div class="scrim" onClick="{{closeSheets}}"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="提示词" style="left: 400px; top: 170px; width: 640px; height: 560px; display: flex; flex-direction: column; overflow: hidden">
+    <div class="shead">
+      <div style="flex: 1; min-width: 0">
+        <div class="stt">{{pe.head}}</div>
+        <div style="font-size: 12px; color: var(--tx2)">{{pe.sub}}</div>
+      </div>
+      <button class="tbtn" aria-label="关闭" onClick="{{closeSheets}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+    <div style="flex: 1; min-height: 0; padding: 20px; display: flex; flex-direction: column; gap: 18px">
+      <div class="group" style="flex: none">
+        <div class="rowi"><label class="k" for="pe-title" style="width: 48px">标题</label><input id="pe-title" class="fld" type="text" value="{{pe.title}}" onChange="{{pe.setTitle}}" placeholder="给这条提示词起个名字"></div>
+        <div class="rowi">
+          <span class="k" style="width: 48px">分类</span>
+          <div class="seg" role="group" aria-label="分类"><sc-for list="{{pe.cats}}" as="g" hint-placeholder-count="5"><button class="{{g.cls}}" onClick="{{g.pick}}">{{g.label}}</button></sc-for></div>
+        </div>
+      </div>
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: baseline">
+          <label class="gh" for="pe-body">正文</label>
+          <span style="flex: 1"></span>
+          <span class="meta" style="padding: 0 4px 6px">{{pe.len}}</span>
+        </div>
+        <textarea id="pe-body" class="fld" style="flex: 1; min-height: 0; font-size: 13px; line-height: 1.6; padding: 10px 12px" value="{{pe.body}}" onChange="{{pe.setBody}}" placeholder="输入提示词正文"></textarea>
+      </div>
+    </div>
+    <div class="sfoot">
+      <span style="flex: 1"></span>
+      <button class="btn" onClick="{{closeSheets}}">关闭</button>
+      <button class="btn pri" onClick="{{pe.copy}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><rect x="9" y="9" width="11" height="11" rx="2.5"></rect><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"></path></svg>复制</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{hasSe}}" hint-placeholder-val="{{ false }}">
+  <div class="scrim" onClick="{{closeSheets}}"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="{{se.name}}" style="left: 280px; top: 180px; width: 880px; height: 540px; display: flex; flex-direction: column; overflow: hidden">
+    <div class="shead">
+      <div style="flex: 1; min-width: 0">
+        <div class="stt">{{se.name}}</div>
+        <div style="font-size: 12px; color: var(--tx2)">风格</div>
+      </div>
+      <button class="tbtn" aria-label="关闭" onClick="{{closeSheets}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+    <div style="flex: 1; min-height: 0; display: flex; gap: 20px; padding: 20px">
+      <div style="width: 380px; flex: none; border-radius: 8px; overflow: hidden; background: var(--fill2)">
+        <sc-if value="{{se.imgUrl}}" hint-placeholder-val="{{ false }}"><img src="{{se.url}}" alt="{{se.label}}" style="width:100%;height:100%;object-fit:cover;display:block"></sc-if>
+        <sc-if value="{{se.imgPh}}" hint-placeholder-val="{{ true }}">
+          <div class="ph" style="background: {{se.tint}}; flex-direction: column; gap: 8px">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg>
+            <span style="font-size: 13px; color: rgba(255,255,255,.72)">{{se.label}}</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{se.noImg}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; width: 100%; height: 100%"><sc-for list="{{se.pal}}" as="h" hint-placeholder-count="5"><div style="flex: 1; background: {{h}}"></div></sc-for></div>
+        </sc-if>
+      </div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+        <p style="margin: 0; font-size: 13px; line-height: 1.6; color: var(--tx)">{{se.desc}}</p>
+        <div>
+          <div class="gh">色板</div>
+          <div style="display: flex; gap: 8px">
+            <sc-for list="{{se.sw}}" as="w" hint-placeholder-count="5">
+              <button class="swb" onClick="{{w.copy}}" aria-label="{{w.aria}}"><span class="c" style="background: {{w.hex}}"></span><span class="mono" style="padding-left: 2px">{{w.label}}</span></button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+          <label class="gh" for="se-prompt">风格提示词</label>
+          <textarea id="se-prompt" class="fld" style="flex: 1; min-height: 0; font-size: 13px; line-height: 1.6; padding: 10px 12px" value="{{se.prompt}}" onChange="{{se.setPrompt}}" placeholder="输入这个风格的提示词"></textarea>
+        </div>
+        <sc-if value="{{se.hasProj}}" hint-placeholder-val="{{ true }}">
+          <div class="group" style="flex: none">
+            <div class="rowi">
+              <span class="k" style="width: auto">用于项目</span>
+              <a class="plink rv" href="Config.dc.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="7.5" width="19" height="10" rx="5"></rect><path d="M8 10.5v4M6 12.5h4"></path><circle cx="15.5" cy="11.5" r=".9"></circle><circle cx="17.5" cy="13.5" r=".9"></circle></svg>{{se.proj}}</a>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+    <div class="sfoot">
+      <span style="flex: 1"></span>
+      <button class="btn" onClick="{{closeSheets}}">关闭</button>
+      <button class="btn pri" onClick="{{se.copy}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><rect x="9" y="9" width="11" height="11" rx="2.5"></rect><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"></path></svg>复制提示词</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{adding}}" hint-placeholder-val="{{ false }}">
+  <div class="scrim" onClick="{{closeSheets}}"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="添加图片" style="left: 460px; top: 260px; width: 520px; height: 380px; display: flex; flex-direction: column; overflow: hidden">
+    <div class="shead">
+      <div class="stt" style="flex: 1; min-width: 0">添加图片</div>
+      <button class="tbtn" aria-label="关闭" onClick="{{closeSheets}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+    <div style="flex: 1; min-height: 0; padding: 20px">
+      <div class="{{dropCls}}" ref="{{dropRef}}" tabindex="0" aria-label="拖入或粘贴图片" onDragOver="{{dragOver}}" onDragLeave="{{dragLeave}}" onDrop="{{drop}}" onPaste="{{paste}}">
+        <span style="color: var(--tx3)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="4.5" width="18" height="15" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M4 18l5-5 4 4 3-3 4 4"></path></svg></span>
+        <div style="font-size: 13px; font-weight: 500">把图片拖到这里，或 ⌘V 粘贴</div>
+        <div style="font-size: 12px; color: var(--tx2)">PNG、JPG、WebP · 存进工作台，所有项目共用</div>
+        <button class="btn" style="margin-top: 8px" onClick="{{simAdd}}">选择文件…</button>
+      </div>
+    </div>
+    <div class="sfoot">
+      <span style="flex: 1"></span>
+      <button class="btn" onClick="{{closeSheets}}">取消</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{hasHud}}" hint-placeholder-val="{{ false }}">
+  <div class="hud" role="status" aria-live="polite"><sc-if value="{{hudOk}}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>{{hud}}</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#0071E3","options":["#0071E3","#8944AB","#C9540A"]},"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  imgs() {
+    return {
+      scene_harbor:     { url: '/_blob/5f3c95e3e1ac243450f368c32ae49c9e', label: '雾港夜景',       tint: '#3d4a63', w: 1536, h: 1024 },
+      scene_forest:     { url: '/_blob/4a48fb7072bf08def1366d5e600e642e', label: '雾中森林',       tint: '#4c6356', w: 1536, h: 1024 },
+      scene_lighthouse: { url: '/_blob/4245846ed96db117ecf86810fa0a9b2a', label: '灯塔内部',       tint: '#6b5a48', w: 1536, h: 1024 },
+      shot_gameplay:    { url: '/_blob/80d38078895bba4be3f96865f8d09d97', label: '游戏画面示意',   tint: '#2f3a4d', w: 1536, h: 1024 },
+      char_watchman:    { url: '/_blob/52e857df8ab4466e9d92b9aa651a3a78', label: '守夜人',         tint: '#8a7a63', w: 1254, h: 1254 },
+      mon_fog:          { url: '/_blob/0516524763d6d9578e7d28992f4c7eda', label: '雾妖',           tint: '#7b8595', w: 1254, h: 1254 },
+      mon_slime:        { url: '/_blob/884bd4988b8924ffb5eb7c24a6e1ef29', label: '史莱姆',         tint: '#6f9f7e', w: 1254, h: 1254 },
+      ui_kit:           { url: '/_blob/332129bf7d7939a929873913e54c568d', label: 'UI 套装',        tint: '#8c8272', w: 1254, h: 1254 },
+      icons_items:      { url: '/_blob/9467ee847484661b444fcd5e84ebba2e', label: '道具图标',       tint: '#94794a', w: 1254, h: 1254 },
+      tiles_stone:      { url: '/_blob/22fe0e811a2b3fa096c6391adaa5a423', label: '石砖瓦片',       tint: '#6f7178', w: 1254, h: 1254 },
+      style_watercolor: { url: '/_blob/75a37b3cb2ee10d6c02ad4707e71a8c7', label: '水彩绘本样张',   tint: '#b3a189', w: 1254, h: 1254 },
+      style_cel:        { url: '/_blob/cab339de0a1eaeecf7de7ab5cbabee63', label: '赛璐璐日系样张', tint: '#7f99bf', w: 1254, h: 1254 },
+      style_lowpoly:    { url: '/_blob/86d7e36affb39e5cea786625ae9eb571', label: '低多边形样张',   tint: '#6f8f8b', w: 1254, h: 1254 },
+      ref_lantern:      { url: '/_blob/549070465f84f053585e1246bdda1037', label: '参考 · 提灯',    tint: '#7a6242', w: 1254, h: 1254 }
+    };
+  }
+
+  libImgs() {
+    return [
+      { id: 'scene_harbor', cat: '场景', tags: ['夜景', '港口', '横版'], fmt: 'PNG', date: '9月22日', proj: '雾港' },
+      { id: 'char_watchman', cat: '角色', tags: ['主角', '提灯', '32×32'], fmt: 'PNG', date: '9月21日', proj: '雾港' },
+      { id: 'mon_fog', cat: '怪物', tags: ['精英怪', '半透明', '雾'], fmt: 'PNG', date: '9月20日', proj: '雾港' },
+      { id: 'mon_slime', cat: '怪物', tags: ['小怪', '32×32'], fmt: 'PNG', date: '9月20日', proj: '雾港' },
+      { id: 'shot_gameplay', cat: '参考', tags: ['画面构图', 'HUD', '16:9'], fmt: 'PNG', date: '9月19日', proj: '雾港' },
+      { id: 'ui_kit', cat: 'UI', tags: ['按钮', '面板', '9-slice'], fmt: 'PNG', date: '9月18日', proj: '雾港' },
+      { id: 'icons_items', cat: '图标', tags: ['16×16', '道具'], fmt: 'PNG', date: '9月17日', proj: '雾港' },
+      { id: 'tiles_stone', cat: '瓦片', tags: ['16×16', '地面', '可平铺'], fmt: 'PNG', date: '9月16日', proj: '雾港' },
+      { id: 'scene_forest', cat: '场景', tags: ['森林', '雾', '远景'], fmt: 'PNG', date: '9月14日', proj: '雾港' },
+      { id: 'scene_lighthouse', cat: '场景', tags: ['室内', '暖光'], fmt: 'PNG', date: '9月12日', proj: '雾港' },
+      { id: 'ref_lantern', cat: '参考', tags: ['实物', '黄铜', '光效'], fmt: 'JPG', date: '9月8日', proj: '雾港' }
+    ];
+  }
+
+  basePrompts() {
+    return [
+      { id: 'p1', cat: '风格', used: 24, title: '16-bit 像素角色 sprite', body: '16-bit pixel art character sprite, side view, 32×32 px, limited 16-color palette, crisp hard edges, no anti-aliasing, 1px dark outline, 2-tone shading. 角色居中、全身入画，站立待机姿势，透明背景。' },
+      { id: 'p2', cat: '用途', used: 18, title: '横版关卡背景分层', body: '2D side-scrolling level background, split into 4 parallax layers: sky, far mountains, mid buildings, foreground props. 每层单独输出一张透明 PNG，1920×1080，左右可无缝拼接；前景层底部留出角色行走的地面。' },
+      { id: 'p3', cat: '约束', used: 31, title: '透明背景单体素材', body: 'single isolated game asset, centered, whole object in frame, transparent background (PNG with alpha), no ground shadow, no text, no watermark, no border. 只画一个物体，不要出多个变体。' },
+      { id: 'p4', cat: '用途', used: 9, title: 'UI 按钮套装', body: 'game UI button set in pixel art: normal / hover / pressed / disabled states, 9-slice friendly borders, 48×16 px each, arranged in a neat grid on transparent background. 光源统一来自左上，按钮上不要文字。' },
+      { id: 'p5', cat: '用途', used: 15, title: '道具图标一组', body: 'a set of 16 RPG item icons: potion, key, lantern, coin, map, gem, scroll, bomb. 16×16 pixel art, consistent outline and lighting, 4×4 grid, each icon centered in its cell, transparent background. 同一组图标用同一套色板。' },
+      { id: 'p6', cat: '风格', used: 9, title: '水彩绘本场景', body: 'watercolor storybook illustration, soft wet-on-wet washes, visible paper texture, loose ink linework, warm muted palette, gentle morning light. 画面留白多，童话感，不要厚重描边。' },
+      { id: 'p7', cat: '构图', used: 7, title: '三视图设定稿', body: 'character turnaround sheet: front, side and back views, same scale and baseline, neutral standing pose, orthographic, evenly spaced on plain light gray background. 用细线标出头身比，三个视图的比例必须一致。' },
+      { id: 'p8', cat: '负面词', used: 42, title: '通用负面词', body: 'blurry, low quality, jpeg artifacts, watermark, signature, text, logo, extra limbs, deformed hands, cropped, out of frame, duplicate, noisy background, oversaturated' },
+      { id: 'p9', cat: '约束', used: 13, title: '像素网格严格对齐', body: 'strictly aligned to the pixel grid, every pixel one solid color, no blur, no gradients, no sub-pixel detail, nearest-neighbor scaling only. 输出尺寸是网格的整数倍，例如 32×32 放大到 512×512。' },
+      { id: 'p10', cat: '构图', used: 5, title: '游戏画面示意 16:9', body: 'in-game screenshot mockup, 16:9, side view camera, player at the left third of the frame, health bar top-left, item slots bottom-center, clear separation between foreground and background. 画面要像真实的游戏截图。' },
+      { id: 'p11', cat: '风格', used: 6, title: '赛璐璐日系立绘', body: 'anime cel-shaded character illustration, clean thin lineart, two-tone hard shadows, bright saturated colors, full body standing pose, white background. 平涂上色，方便后期抠图。' },
+      { id: 'p12', cat: '负面词', used: 18, title: '像素风负面词', body: 'anti-aliasing, smooth gradients, soft brush, painterly, 3D render, photorealistic, blur, mixed pixel sizes, inconsistent resolution, noisy dithering' }
+    ];
+  }
+
+  baseStyles() {
+    return [
+      { id: 's1', name: '16-bit 暗调像素', sample: 'scene_harbor', proj: '雾港', desc: '低饱和的夜色，只用提灯的暖光做点缀。', pal: ['#1B1F2E', '#2F3A52', '#56627A', '#C9A15A', '#F2D28B'], prompt: '16-bit pixel art, dark moody palette, desaturated navy and slate tones, warm lantern light as the only accent, crisp edges, no anti-aliasing, 320×180 base resolution. 雾用 2–3 级抖动表现，暗部不要纯黑。' },
+      { id: 's2', name: '水彩绘本', sample: 'style_watercolor', proj: '', desc: '纸张纹理和柔和的晕染，温暖的童话感。', pal: ['#F4ECDC', '#D9B99B', '#A7B89A', '#6D8FA6', '#4A3F38'], prompt: 'watercolor storybook illustration, soft wet-on-wet washes, visible paper grain, loose ink linework, warm muted palette, generous white space. 边缘自然晕开，不要硬描边。' },
+      { id: 's3', name: '赛璐璐日系', sample: 'style_cel', proj: '', desc: '干净的线稿、两阶硬阴影、明亮饱和的配色。', pal: ['#FBE3D4', '#F28F8F', '#6CB4EE', '#2E4A7D', '#1F1F2E'], prompt: 'anime cel shading, clean thin lineart, two-tone hard shadows, bright saturated colors, crisp highlights on hair and eyes. 平涂上色，不要厚涂笔触。' },
+      { id: 's4', name: '低多边形 3D', sample: 'style_lowpoly', proj: '', desc: '块面分明的低模，配柔和的环境光。', pal: ['#2D4A53', '#4F7C7A', '#8FB3A0', '#E3D7B8', '#D9826A'], prompt: 'low poly 3D render, faceted geometry, flat shading per face, soft ambient occlusion, teal and sand palette, isometric camera, clean studio lighting. 面数少，轮廓清楚。' },
+      { id: 's5', name: '扁平矢量', sample: '', proj: '', desc: '几何形状和纯色块，没有描边和纹理。', pal: ['#264653', '#2A9D8F', '#E9C46A', '#F4A261', '#E76F51'], prompt: 'flat vector illustration, simple geometric shapes, solid color fills, no outlines, no gradients, no texture, bold limited palette. 适合做 UI 插图和图标。' },
+      { id: 's6', name: '剪纸拼贴', sample: '', proj: '', desc: '层层叠起的彩纸，带手工撕边的质感。', pal: ['#EFE2C6', '#E0704F', '#7A9E7E', '#3D5A80', '#22223B'], prompt: 'paper cut-out collage, layered colored paper, subtle shadows between layers, torn edges, visible paper fibers, handcrafted diorama look. 每一层只用一种颜色。' },
+      { id: 's7', name: '厚涂写实', sample: '', proj: '', desc: '厚重的笔触和体积光，偏写实的概念设定。', pal: ['#1E1A17', '#4B3B2F', '#8C6A4A', '#C9A97C', '#E8DCC6'], prompt: 'painterly concept art, thick impasto brushwork, realistic lighting and volume, dramatic rim light, muted earthy tones, visible brush texture. 重点刻画材质和光影。' },
+      { id: 's8', name: '1-bit 单色', sample: '', proj: '', desc: '只有一深一浅两种颜色，靠抖动表现明暗。', pal: ['#0B0B0B', '#F4F1E8', '#312F28', '#B1AEA8', '#E0DBCD'], prompt: '1-bit pixel art, only two colors (ink and paper), ordered dithering for shading, bold silhouettes, no gray tones, 400×240 screen. 明暗全部靠抖动图案。' },
+      { id: 's9', name: 'PS1 复古 3D', sample: '', proj: '', desc: '低分辨率贴图、顶点抖动和远处的雾。', pal: ['#1A1423', '#3D3B5C', '#7B6D8D', '#C2A878', '#6B8F71'], prompt: 'PS1-era retro 3D, low-poly models, 64×64 textures with nearest-neighbor filtering, affine texture warping, vertex jitter, distance fog, 320×240 render. 画面带一点色带和噪点。' }
+    ];
+  }
+
+  base() {
+    return {
+      tab: 'img', q: '', imgCat: '全部', pCat: '全部', view: 'grid',
+      sel: null, done: null, swDone: null, hud: null, hudWarn: false,
+      ql: null, pe: null, se: null, adding: false, dragOn: false,
+      added: [], simN: 0,
+      prompts: this.basePrompts(), styles: this.baseStyles()
+    };
+  }
+  st() { return Object.assign(this.base(), this.state || {}); }
+
+  componentWillUnmount() { clearTimeout(this._ht); clearTimeout(this._dt); clearTimeout(this._wt); }
+
+  hudMsg(msg, warn) {
+    this.setState({ hud: msg, hudWarn: !!warn });
+    clearTimeout(this._ht);
+    this._ht = setTimeout(() => this.setState({ hud: null }), 2000);
+  }
+  flashDone(key) {
+    this.setState({ done: key, sel: key });
+    clearTimeout(this._dt);
+    this._dt = setTimeout(() => this.setState({ done: null }), 2000);
+  }
+  failMsg() { return '已复制（原型环境限制了剪贴板，实际应用会直接复制）'; }
+
+  toPng(blob) {
+    return new Promise((resolve, reject) => {
+      try {
+        const u = URL.createObjectURL(blob);
+        const im = new Image();
+        im.onload = () => {
+          try {
+            const c = document.createElement('canvas');
+            c.width = im.naturalWidth; c.height = im.naturalHeight;
+            c.getContext('2d').drawImage(im, 0, 0);
+            URL.revokeObjectURL(u);
+            c.toBlob((b) => (b ? resolve(b) : reject(new Error('png'))), 'image/png');
+          } catch (e) { reject(e); }
+        };
+        im.onerror = () => { URL.revokeObjectURL(u); reject(new Error('img')); };
+        im.src = u;
+      } catch (e) { reject(e); }
+    });
+  }
+  copyImage(it) {
+    this.flashDone('i:' + it.id);
+    const fail = () => this.hudMsg(this.failMsg());
+    try {
+      if (!it.url || !navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') { fail(); return; }
+      fetch(it.url)
+        .then((r) => r.blob())
+        .then((blob) => (blob.type === 'image/png' ? blob : this.toPng(blob)))
+        .then((png) => navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]))
+        .then(() => this.hudMsg('已复制图片'))
+        .catch(fail);
+    } catch (e) { fail(); }
+  }
+  copyText(text, okMsg) {
+    const fail = () => this.hudMsg(this.failMsg());
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { fail(); return; }
+      navigator.clipboard.writeText(text).then(() => this.hudMsg(okMsg)).catch(fail);
+    } catch (e) { fail(); }
+  }
+  copyPrompt(id) {
+    const s = this.st();
+    const p = s.prompts.find((x) => x.id === id);
+    if (!p) return;
+    if (!String(p.body || '').trim()) { this.hudMsg('这条提示词还没有正文', true); return; }
+    this.setState({ prompts: s.prompts.map((x) => (x.id === id ? Object.assign({}, x, { used: (x.used || 0) + 1 }) : x)) });
+    this.flashDone('p:' + id);
+    this.copyText(p.body, '已复制提示词');
+  }
+  copyStyle(id) {
+    const x = this.st().styles.find((y) => y.id === id);
+    if (!x) return;
+    this.flashDone('s:' + id);
+    this.copyText(x.prompt, '已复制风格提示词');
+  }
+  copyHex(hex, key) {
+    this.setState({ swDone: key });
+    clearTimeout(this._wt);
+    this._wt = setTimeout(() => this.setState({ swDone: null }), 2000);
+    this.copyText(hex, '已复制色值 ' + hex);
+  }
+
+  setPrompt(id, patch) {
+    const s = this.st();
+    this.setState({ prompts: s.prompts.map((p) => (p.id === id ? Object.assign({}, p, patch) : p)) });
+  }
+  setStyle(id, patch) {
+    const s = this.st();
+    this.setState({ styles: s.styles.map((p) => (p.id === id ? Object.assign({}, p, patch) : p)) });
+  }
+  newPrompt() {
+    const s = this.st();
+    const id = 'pn' + Date.now();
+    const cat = s.pCat !== '全部' ? s.pCat : '风格';
+    this.setState({ prompts: [{ id, cat, used: 0, title: '新提示词', body: '' }].concat(s.prompts), pe: id, q: '', sel: 'p:' + id });
+  }
+  closeSheets() {
+    const s = this.st();
+    const patch = { ql: null, pe: null, se: null, adding: false, dragOn: false };
+    if (s.pe) {
+      const p = s.prompts.find((x) => x.id === s.pe);
+      const t = p ? String(p.title || '').trim() : '';
+      if (p && !String(p.body || '').trim() && (!t || t === '新提示词')) patch.prompts = s.prompts.filter((x) => x.id !== s.pe);
+    }
+    this.setState(patch);
+  }
+
+  addItems(items) {
+    const s = this.st();
+    this.setState({ added: items.concat(s.added), adding: false, dragOn: false, tab: 'img', imgCat: '全部', q: '', sel: 'i:' + items[0].id });
+    this.hudMsg(items.length > 1 ? '已添加 ' + items.length + ' 张图片' : '已添加到图片素材');
+  }
+  simAdd() {
+    const s = this.st();
+    const SIM = [
+      { name: '灯塔守卫', cat: '角色', tint: '#5d6b7d', w: 1024, h: 1024, tags: ['NPC', '概念'] },
+      { name: '港口集市', cat: '场景', tint: '#57606f', w: 1536, h: 1024, tags: ['白天', '集市'] },
+      { name: '雾中水母', cat: '怪物', tint: '#6d7f99', w: 1024, h: 1024, tags: ['飞行', '发光'] },
+      { name: '钥匙与徽章', cat: '图标', tint: '#8d7650', w: 1024, h: 1024, tags: ['16×16', '任务道具'] }
+    ];
+    const n = s.simN + 1;
+    const d = SIM[(n - 1) % SIM.length];
+    const round = Math.ceil(n / SIM.length);
+    const name = round > 1 ? d.name + ' ' + round : d.name;
+    const it = Object.assign({}, d, { id: 'new' + n, name, label: name, url: '', fmt: 'PNG', date: '今天', proj: '' });
+    this.setState({ simN: n });
+    this.addItems([it]);
+  }
+  readFiles(list) {
+    const files = Array.prototype.filter.call(list || [], (f) => f && /^image\//.test(f.type || '')).slice(0, 12);
+    if (!files.length) { this.setState({ dragOn: false }); this.hudMsg('没有可添加的图片', true); return; }
+    Promise.all(files.map((f) => new Promise((res) => {
+      try {
+        const fr = new FileReader();
+        fr.onload = () => {
+          const url = String(fr.result || '');
+          const im = new Image();
+          im.onload = () => res({ url, w: im.naturalWidth, h: im.naturalHeight, f });
+          im.onerror = () => res(null);
+          im.src = url;
+        };
+        fr.onerror = () => res(null);
+        fr.readAsDataURL(f);
+      } catch (e) { res(null); }
+    }))).then((arr) => {
+      const s = this.st();
+      const cat = s.imgCat !== '全部' ? s.imgCat : '参考';
+      const stamp = Date.now();
+      const items = arr.filter(Boolean).map((x, i) => {
+        const raw = String(x.f.name || '');
+        const nm = !raw || raw === 'image.png' ? '粘贴的图片' : raw.replace(/\.[^.]+$/, '');
+        const fmt = String((x.f.type || 'image/png').split('/')[1] || 'png').replace('jpeg', 'jpg').toUpperCase();
+        return { id: 'f' + stamp + '_' + i, name: nm, label: nm, url: x.url, tint: '#8e8e93', w: x.w, h: x.h, fmt, cat, tags: ['新添加'], date: '今天', proj: '' };
+      });
+      if (items.length) this.addItems(items); else this.hudMsg('没有可添加的图片', true);
+    });
+  }
+  dropRef() {
+    if (!this._dropRef) this._dropRef = (el) => { if (el) { try { el.focus({ preventScroll: true }); } catch (x) {} } };
+    return this._dropRef;
+  }
+
+  renderVals() {
+    const s = this.st();
+    const R = this.imgs();
+    const set = (p) => this.setState(p);
+    const q = String(s.q || '').trim().toLowerCase();
+    const match = (arr) => !q || arr.some((t) => String(t || '').toLowerCase().indexOf(q) >= 0);
+    const tab = s.tab;
+
+    const allImgs = s.added.concat(this.libImgs().map((d) => Object.assign({}, R[d.id], d, { name: R[d.id].label })));
+    const imgF = allImgs.filter((x) => (s.imgCat === '全部' || x.cat === s.imgCat) && match([x.name, x.cat].concat(x.tags)));
+    const decoImg = (x, i) => {
+      const key = 'i:' + x.id;
+      return {
+        id: x.id, name: x.name, label: x.label || x.name, url: x.url || '', tint: x.tint || '#8e8e93',
+        hasUrl: !!x.url, noUrl: !x.url, cat: x.cat, date: x.date, tags: x.tags,
+        dims: x.w + '×' + x.h + ' · ' + x.fmt,
+        cardCls: s.sel === key ? 'card sel' : 'card',
+        rowCls: s.sel === key ? 'lr sel' : (i % 2 ? 'lr alt' : 'lr'),
+        isDone: s.done === key,
+        copy: () => this.copyImage(x),
+        view: () => set({ ql: x.id, sel: key })
+      };
+    };
+    const gridImgs = imgF.slice(0, 12).map(decoImg);
+    const listRows = imgF.slice(0, 18).map(decoImg);
+    const fillRows = [];
+    for (let i = listRows.length; i < 18; i++) fillRows.push({ cls: i % 2 ? 'lr alt' : 'lr' });
+
+    const qx = s.ql ? allImgs.find((x) => x.id === s.ql) : null;
+    const box = (w, h) => {
+      const W = 600, H = 448, r = w / h;
+      return r >= W / H ? { bw: W + 'px', bh: Math.round(W / r) + 'px' } : { bw: Math.round(H * r) + 'px', bh: H + 'px' };
+    };
+    const ql = qx ? Object.assign({
+      name: qx.name, label: qx.label || qx.name, url: qx.url || '', tint: qx.tint || '#8e8e93',
+      hasUrl: !!qx.url, noUrl: !qx.url, cat: qx.cat, size: qx.w + ' × ' + qx.h, fmt: qx.fmt, date: qx.date,
+      tags: qx.tags, hasProj: !!qx.proj, noProj: !qx.proj, proj: qx.proj || '',
+      sub: qx.cat + ' · ' + qx.w + '×' + qx.h + ' · ' + qx.fmt
+    }, box(qx.w, qx.h)) : {
+      name: '', label: '', url: '', tint: '', hasUrl: false, noUrl: true, cat: '', size: '', fmt: '', date: '',
+      tags: [], hasProj: false, noProj: true, proj: '', sub: '', bw: '0px', bh: '0px'
+    };
+
+    const DOT = { 风格: '#AF52DE', 用途: '#007AFF', 约束: '#FF9500', 构图: '#34C759', 负面词: '#FF3B30' };
+    const P_CATS = ['风格', '用途', '约束', '构图', '负面词'];
+    const pF = s.prompts.filter((p) => (s.pCat === '全部' || p.cat === s.pCat) && match([p.title, p.body, p.cat]));
+    const promptCards = pF.slice(0, 10).map((p) => {
+      const key = 'p:' + p.id;
+      return {
+        title: p.title || '未命名', body: p.body, cat: p.cat, dot: DOT[p.cat] || '#8e8e93',
+        usedText: p.used ? '用过 ' + p.used + ' 次' : '还没用过',
+        cardCls: s.sel === key ? 'card sel' : 'card', isDone: s.done === key,
+        copy: () => this.copyPrompt(p.id),
+        view: () => set({ pe: p.id, sel: key })
+      };
+    });
+    const px = s.pe ? s.prompts.find((p) => p.id === s.pe) : null;
+    const noop = () => {};
+    const pe = px ? {
+      head: px.title || '未命名', title: px.title, body: px.body,
+      sub: px.cat + ' · ' + (px.used ? '用过 ' + px.used + ' 次' : '还没用过'),
+      len: String(px.body || '').length + ' 字',
+      cats: P_CATS.map((c) => ({ label: c, cls: px.cat === c ? 'on' : '', pick: () => this.setPrompt(px.id, { cat: c }) })),
+      setTitle: (e) => this.setPrompt(px.id, { title: e.target.value }),
+      setBody: (e) => this.setPrompt(px.id, { body: e.target.value }),
+      copy: () => this.copyPrompt(px.id)
+    } : { head: '', title: '', body: '', sub: '', len: '', cats: [], setTitle: noop, setBody: noop, copy: noop };
+
+    const stF = s.styles.filter((x) => match([x.name, x.desc, x.prompt]));
+    const styleVis = (x) => {
+      const im = x.sample ? R[x.sample] : null;
+      return {
+        imgUrl: !!(im && im.url), imgPh: !!(im && !im.url), noImg: !im,
+        url: im ? im.url : '', tint: im ? im.tint : '', label: im ? im.label : ''
+      };
+    };
+    const styleCards = stF.slice(0, 9).map((x) => {
+      const key = 's:' + x.id;
+      return Object.assign(styleVis(x), {
+        name: x.name, desc: x.desc, pal: x.pal,
+        cardCls: s.sel === key ? 'card sel' : 'card', isDone: s.done === key,
+        copy: () => this.copyStyle(x.id),
+        view: () => set({ se: x.id, sel: key })
+      });
+    });
+    const sx = s.se ? s.styles.find((x) => x.id === s.se) : null;
+    const se = sx ? Object.assign(styleVis(sx), {
+      name: sx.name, desc: sx.desc, prompt: sx.prompt, pal: sx.pal,
+      hasProj: !!sx.proj, proj: sx.proj || '',
+      sw: sx.pal.map((h, i) => {
+        const key = sx.id + ':' + i;
+        return { hex: h, label: s.swDone === key ? '已复制' : h, aria: '复制色值 ' + h, copy: () => this.copyHex(h, key) };
+      }),
+      setPrompt: (e) => this.setStyle(sx.id, { prompt: e.target.value }),
+      copy: () => this.copyStyle(sx.id)
+    }) : { name: '', desc: '', prompt: '', pal: [], sw: [], hasProj: false, proj: '', imgUrl: false, imgPh: false, noImg: true, url: '', tint: '', label: '', setPrompt: noop, copy: noop };
+
+    const IMG_CATS = ['全部', '角色', '怪物', '场景', 'UI', '图标', '瓦片', '参考'];
+    const segs = tab === 'img'
+      ? IMG_CATS.map((c) => ({ label: c, cls: s.imgCat === c ? 'on' : '', pick: () => set({ imgCat: c }) }))
+      : tab === 'prompt'
+        ? ['全部'].concat(P_CATS).map((c) => ({ label: c, cls: s.pCat === c ? 'on' : '', pick: () => set({ pCat: c }) }))
+        : [];
+
+    const nImg = 128 + s.added.length;
+    const nPrompt = 46 + Math.max(0, s.prompts.length - 12);
+    const count = tab === 'img' ? imgF.length : tab === 'prompt' ? pF.length : stF.length;
+    const noun = tab === 'img' ? '图片' : tab === 'prompt' ? '提示词' : '风格';
+    const isEmpty = count === 0;
+    const go = (t) => () => set({ tab: t, q: '', ql: null, pe: null, se: null, adding: false });
+
+    return {
+      accent: this.props.accent ?? '#0071E3',
+      appCls: (this.props.dark ?? false) ? 'app dark' : 'app',
+
+      navImg: tab === 'img' ? 'nv on' : 'nv',
+      navPrompt: tab === 'prompt' ? 'nv on' : 'nv',
+      navStyle: tab === 'style' ? 'nv on' : 'nv',
+      goImg: go('img'), goPrompt: go('prompt'), goStyle: go('style'),
+      nImg, nPrompt,
+
+      subtitle: tab === 'img' ? '所有项目共用 · ' + nImg + ' 张图片' : tab === 'prompt' ? '所有项目共用 · ' + nPrompt + ' 条提示词' : '所有项目共用 · 9 种风格',
+      hasSeg: segs.length > 0, segs,
+      q: s.q, hasQ: !!s.q, qPh: '搜索' + noun,
+      setQ: (e) => set({ q: e.target.value }),
+      qKey: (e) => { if (e.nativeEvent && e.nativeEvent.isComposing) return; if (e.key === 'Escape') set({ q: '' }); },
+      clearQ: () => set({ q: '' }),
+      isImg: tab === 'img',
+      gridCls: s.view === 'grid' ? 'ico on' : 'ico', listCls: s.view === 'list' ? 'ico on' : 'ico',
+      toGrid: () => set({ view: 'grid' }), toList: () => set({ view: 'list' }),
+      canAdd: tab !== 'style', addLabel: tab === 'img' ? '添加图片' : '新建提示词',
+      plus: () => { if (tab === 'img') set({ adding: true, dragOn: false }); else this.newPrompt(); },
+
+      mainCls: tab === 'img' ? 'lib' : 'lib tint',
+      showImgGrid: tab === 'img' && s.view === 'grid' && !isEmpty, gridImgs,
+      showImgList: tab === 'img' && s.view === 'list' && !isEmpty, listRows, fillRows,
+      showPrompts: tab === 'prompt' && !isEmpty, promptCards,
+      showStyles: tab === 'style' && !isEmpty, styleCards,
+      isEmpty,
+      emptyTitle: s.q ? '没有找到' + noun : '这里还没有' + noun,
+      emptyHint: s.q ? '没有和“' + String(s.q).trim() + '”匹配的' + noun : '点右上角的加号添加',
+
+      closeSheets: () => this.closeSheets(),
+      hasQl: !!qx, ql,
+      qlCopy: () => { if (qx) this.copyImage(qx); },
+      qlFinder: () => this.hudMsg('已在访达中显示「' + (qx ? qx.name : '') + '」'),
+      hasPe: !!px, pe,
+      hasSe: !!sx, se,
+
+      adding: s.adding,
+      dropCls: s.dragOn ? 'drop on' : 'drop',
+      dropRef: this.dropRef(),
+      dragOver: (e) => { e.preventDefault(); try { e.dataTransfer.dropEffect = 'copy'; } catch (x) {} if (!this.st().dragOn) set({ dragOn: true }); },
+      dragLeave: (e) => { const t = e.relatedTarget; if (t && e.currentTarget && e.currentTarget.contains(t)) return; set({ dragOn: false }); },
+      drop: (e) => { e.preventDefault(); set({ dragOn: false }); this.readFiles(e.dataTransfer ? e.dataTransfer.files : null); },
+      paste: (e) => {
+        try {
+          const dt = e.clipboardData;
+          const files = [];
+          if (dt && dt.items) {
+            for (let i = 0; i < dt.items.length; i++) {
+              const it = dt.items[i];
+              if (it.kind === 'file') { const f = it.getAsFile(); if (f) files.push(f); }
+            }
+          }
+          if (files.length) { e.preventDefault(); this.readFiles(files); } else this.hudMsg('剪贴板里没有图片', true);
+        } catch (x) { this.hudMsg('剪贴板里没有图片', true); }
+      },
+      simAdd: () => this.simAdd(),
+
+      hasHud: !!s.hud, hud: s.hud || '', hudOk: !s.hudWarn
+    };
+  }
+}
+</script>
+</body>
+</html>

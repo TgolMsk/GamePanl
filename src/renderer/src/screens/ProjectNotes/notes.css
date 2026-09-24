@@ -1,0 +1,476 @@
+/* 构思：左侧笔记列表（灰底，宽 300）+ 右侧编辑区，照备忘录。类名前缀 pn- */
+
+/* ---------- 笔记列表 ---------- */
+.pn-list {
+  width: 300px;
+  flex: none;
+  background: var(--bg2);
+  border-right: 0.5px solid var(--sep);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-bottom: 8px;
+}
+.pn-sec {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tx2);
+  padding: 10px 20px 4px;
+}
+.pn-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 8px;
+  padding: 8px 10px 8px 8px;
+  border-radius: 8px;
+}
+.pn-row::after {
+  content: '';
+  position: absolute;
+  left: 38px;
+  right: 10px;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--sep);
+}
+.pn-row.nosep::after {
+  display: none;
+}
+.pn-row.on {
+  background: color-mix(in srgb, var(--acc) 15%, transparent);
+}
+.pn-row:not(.on):has(.pn-nb:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+.pn-nb {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.pn-ncol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pn-nt {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--tx);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pn-nt.struck {
+  color: var(--tx2);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+.pn-ns {
+  font-size: 12px;
+  color: var(--tx2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pn-nm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--tx2);
+}
+.pn-thumb {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--fill2);
+}
+.pn-thumb > img,
+.pn-pf > img,
+.pn-relc .frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pn-listempty {
+  padding: 120px 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--tx2);
+}
+
+/* 勾选框（列表行、清单项） */
+.pn-ck {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 0;
+  padding: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--tx2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+.pn-ck:hover {
+  background: var(--fill2);
+}
+.pn-ck.on {
+  color: var(--acc);
+}
+.pn-ck:focus-visible,
+.pn-tgl:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* ---------- 编辑区 ---------- */
+.pn-editor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--win);
+}
+.pn-bar {
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 24px;
+  border-bottom: 0.5px solid var(--sep);
+}
+.pn-bar > .lbl {
+  white-space: nowrap;
+}
+.pn-bar > .grow {
+  flex: 1;
+}
+.pn-vsep {
+  width: 0.5px;
+  height: 14px;
+  flex: none;
+  margin: 0 4px;
+  background: var(--sep);
+}
+.pn-tgl {
+  height: 24px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 3px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  outline: none;
+}
+.pn-tgl:hover {
+  background: var(--fill2);
+}
+.pn-tgl .ic {
+  display: inline-flex;
+  color: var(--tx2);
+}
+.pn-tgl.on .ic {
+  color: var(--acc);
+}
+
+.pn-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.pn-col {
+  width: min(640px, calc(100% - 48px));
+  min-height: 100%;
+  margin: 0 auto;
+  padding-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pn-title {
+  display: block;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--tx);
+}
+.pn-para,
+.pn-cin {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+  font: inherit;
+  font-size: 13px;
+  color: var(--tx);
+}
+.pn-para {
+  margin: 2px 0;
+  line-height: 1.75;
+  min-height: calc(13px * 1.75);
+}
+.pn-title::placeholder,
+.pn-para::placeholder,
+.pn-cin::placeholder {
+  color: var(--tx3);
+}
+.pn-todo {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-left: -3px;
+}
+.pn-cin {
+  flex: 1;
+  min-width: 0;
+  line-height: 22px;
+  min-height: 22px;
+}
+.pn-cin.struck {
+  color: var(--tx2);
+  text-decoration: line-through;
+}
+
+/* 正文里的图片：ImageCard + 悬停出现的「从笔记移除」 */
+.pn-img {
+  position: relative;
+  max-width: 100%;
+  flex: none;
+  margin: 8px 0 6px;
+}
+.pn-img .pn-rm {
+  right: 40px;
+}
+.pn-img:hover .pn-rm {
+  opacity: 1;
+}
+.pn-imeta {
+  margin-top: 5px;
+}
+
+/* 正文下面的空白：点一下接着写 */
+.pn-tail {
+  flex: 1;
+  min-height: 72px;
+  cursor: text;
+}
+
+.pn-nosel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--tx2);
+}
+
+/* ---------- 底部：关联资料 ---------- */
+.pn-rel {
+  height: 76px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  border-top: 0.5px solid var(--sep);
+}
+.pn-relh {
+  width: 64px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pn-relt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tx);
+}
+.pn-rellist {
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  padding: 3px;
+  margin: -3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pn-relc {
+  flex: none;
+}
+.pn-relc .frame {
+  height: 52px;
+}
+.done.pn-mini {
+  left: 4px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 9px;
+  justify-content: center;
+}
+
+/* ---------- 插入图片 popover ---------- */
+.pn-popanchor {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.btn.pn-popbtn.on {
+  background: var(--fill);
+}
+.pn-pop {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: -8px;
+  z-index: 40;
+  width: 404px;
+  max-height: min(560px, calc(100vh - 140px));
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 14px;
+  background: var(--bg2);
+  border: 0.5px solid var(--sep);
+  border-radius: var(--r-sheet);
+  animation: gp-fade 0.12s ease-out;
+}
+.pn-arrow {
+  position: absolute;
+  top: -6px;
+  right: 50px;
+  width: 11px;
+  height: 11px;
+  background: var(--bg2);
+  border-left: 0.5px solid var(--sep);
+  border-top: 0.5px solid var(--sep);
+  transform: rotate(45deg);
+}
+.pn-poptitle {
+  height: 22px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tx);
+}
+.pn-popscroll {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  margin: 0 -14px;
+  padding: 0 14px 3px;
+}
+.pn-psec {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tx2);
+  padding: 10px 2px 6px;
+}
+.pn-psec + .pn-psec,
+.pn-pgrid + .pn-psec,
+.pn-pempty + .pn-psec {
+  padding-top: 14px;
+}
+.pn-pgrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 8px;
+}
+.pn-pempty {
+  padding: 2px 2px 0;
+}
+.pn-pk {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.pn-pf {
+  position: relative;
+  width: 100%;
+  height: 72px;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: var(--fill2);
+}
+.pn-pk:hover .pn-pf,
+.pn-pk:focus-visible .pn-pf {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+.pn-pl {
+  font-size: 11px;
+  color: var(--tx2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pn-inb {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--acc);
+  color: var(--acc-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-pop {
+    animation: none;
+  }
+}

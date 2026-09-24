@@ -1,0 +1,1034 @@
+{
+  "baseDate": "2026-09-24",
+  "library": {
+    "images": [
+      {
+        "key": "scene_harbor",
+        "file": "scene_harbor.jpg",
+        "name": "雾港夜景",
+        "category": "场景",
+        "tags": [
+          "夜景",
+          "港口",
+          "横版"
+        ],
+        "addedAt": "2026-09-22 21:40"
+      },
+      {
+        "key": "char_watchman",
+        "file": "char_watchman.jpg",
+        "name": "守夜人",
+        "category": "角色",
+        "tags": [
+          "主角",
+          "提灯",
+          "32×32"
+        ],
+        "addedAt": "2026-09-21 16:05"
+      },
+      {
+        "key": "mon_fog",
+        "file": "mon_fog.jpg",
+        "name": "雾妖",
+        "category": "怪物",
+        "tags": [
+          "精英怪",
+          "半透明",
+          "雾"
+        ],
+        "addedAt": "2026-09-20 15:30"
+      },
+      {
+        "key": "mon_slime",
+        "file": "mon_slime.jpg",
+        "name": "史莱姆",
+        "category": "怪物",
+        "tags": [
+          "小怪",
+          "32×32"
+        ],
+        "addedAt": "2026-09-20 11:20"
+      },
+      {
+        "key": "shot_gameplay",
+        "file": "shot_gameplay.jpg",
+        "name": "游戏画面示意",
+        "category": "参考",
+        "tags": [
+          "画面构图",
+          "HUD",
+          "16:9"
+        ],
+        "addedAt": "2026-09-19 20:15"
+      },
+      {
+        "key": "ui_kit",
+        "file": "ui_kit.jpg",
+        "name": "UI 套装",
+        "category": "UI",
+        "tags": [
+          "按钮",
+          "面板",
+          "9-slice"
+        ],
+        "addedAt": "2026-09-18 14:50"
+      },
+      {
+        "key": "icons_items",
+        "file": "icons_items.jpg",
+        "name": "道具图标",
+        "category": "图标",
+        "tags": [
+          "16×16",
+          "道具"
+        ],
+        "addedAt": "2026-09-17 17:35"
+      },
+      {
+        "key": "tiles_stone",
+        "file": "tiles_stone.jpg",
+        "name": "石砖瓦片",
+        "category": "瓦片",
+        "tags": [
+          "16×16",
+          "地面",
+          "可平铺"
+        ],
+        "addedAt": "2026-09-16 10:25"
+      },
+      {
+        "key": "scene_forest",
+        "file": "scene_forest.jpg",
+        "name": "雾中森林",
+        "category": "场景",
+        "tags": [
+          "森林",
+          "雾",
+          "远景"
+        ],
+        "addedAt": "2026-09-14 19:10"
+      },
+      {
+        "key": "scene_lighthouse",
+        "file": "scene_lighthouse.jpg",
+        "name": "灯塔内部",
+        "category": "场景",
+        "tags": [
+          "室内",
+          "暖光"
+        ],
+        "addedAt": "2026-09-12 13:45"
+      },
+      {
+        "key": "style_watercolor",
+        "file": "style_watercolor.jpg",
+        "name": "水彩绘本样张",
+        "category": "参考",
+        "tags": [
+          "风格样张",
+          "水彩绘本"
+        ],
+        "addedAt": "2026-09-10 14:20"
+      },
+      {
+        "key": "ref_lantern",
+        "file": "ref_lantern.jpg",
+        "name": "参考 · 提灯",
+        "category": "参考",
+        "tags": [
+          "实物",
+          "黄铜",
+          "光效"
+        ],
+        "addedAt": "2026-09-08 11:05"
+      },
+      {
+        "key": "style_lowpoly",
+        "file": "style_lowpoly.jpg",
+        "name": "低多边形样张",
+        "category": "参考",
+        "tags": [
+          "风格样张",
+          "低多边形 3D"
+        ],
+        "addedAt": "2026-09-08 10:40"
+      },
+      {
+        "key": "style_cel",
+        "file": "style_cel.jpg",
+        "name": "赛璐璐日系样张",
+        "category": "参考",
+        "tags": [
+          "风格样张",
+          "赛璐璐日系"
+        ],
+        "addedAt": "2026-09-05 16:30"
+      }
+    ],
+    "prompts": [
+      {
+        "key": "p1",
+        "title": "16-bit 像素角色 sprite",
+        "body": "16-bit pixel art character sprite, side view, 32×32 px, limited 16-color palette, crisp hard edges, no anti-aliasing, 1px dark outline, 2-tone shading. 角色居中、全身入画，站立待机姿势，透明背景。",
+        "category": "风格",
+        "uses": 24,
+        "createdAt": "2026-09-20 10:00"
+      },
+      {
+        "key": "p2",
+        "title": "横版关卡背景分层",
+        "body": "2D side-scrolling level background, split into 4 parallax layers: sky, far mountains, mid buildings, foreground props. 每层单独输出一张透明 PNG，1920×1080，左右可无缝拼接；前景层底部留出角色行走的地面。",
+        "category": "用途",
+        "uses": 18,
+        "createdAt": "2026-09-19 10:00"
+      },
+      {
+        "key": "p3",
+        "title": "透明背景单体素材",
+        "body": "single isolated game asset, centered, whole object in frame, transparent background (PNG with alpha), no ground shadow, no text, no watermark, no border. 只画一个物体，不要出多个变体。",
+        "category": "约束",
+        "uses": 31,
+        "createdAt": "2026-09-18 10:00"
+      },
+      {
+        "key": "p4",
+        "title": "UI 按钮套装",
+        "body": "game UI button set in pixel art: normal / hover / pressed / disabled states, 9-slice friendly borders, 48×16 px each, arranged in a neat grid on transparent background. 光源统一来自左上，按钮上不要文字。",
+        "category": "用途",
+        "uses": 9,
+        "createdAt": "2026-09-17 10:00"
+      },
+      {
+        "key": "p5",
+        "title": "道具图标一组",
+        "body": "a set of 16 RPG item icons: potion, key, lantern, coin, map, gem, scroll, bomb. 16×16 pixel art, consistent outline and lighting, 4×4 grid, each icon centered in its cell, transparent background. 同一组图标用同一套色板。",
+        "category": "用途",
+        "uses": 15,
+        "createdAt": "2026-09-16 10:00"
+      },
+      {
+        "key": "p6",
+        "title": "水彩绘本场景",
+        "body": "watercolor storybook illustration, soft wet-on-wet washes, visible paper texture, loose ink linework, warm muted palette, gentle morning light. 画面留白多，童话感，不要厚重描边。",
+        "category": "风格",
+        "uses": 9,
+        "createdAt": "2026-09-15 10:00"
+      },
+      {
+        "key": "p7",
+        "title": "三视图设定稿",
+        "body": "character turnaround sheet: front, side and back views, same scale and baseline, neutral standing pose, orthographic, evenly spaced on plain light gray background. 用细线标出头身比，三个视图的比例必须一致。",
+        "category": "构图",
+        "uses": 7,
+        "createdAt": "2026-09-14 10:00"
+      },
+      {
+        "key": "p8",
+        "title": "通用负面词",
+        "body": "blurry, low quality, jpeg artifacts, watermark, signature, text, logo, extra limbs, deformed hands, cropped, out of frame, duplicate, noisy background, oversaturated",
+        "category": "负面词",
+        "uses": 42,
+        "createdAt": "2026-09-13 10:00"
+      },
+      {
+        "key": "p9",
+        "title": "像素网格严格对齐",
+        "body": "strictly aligned to the pixel grid, every pixel one solid color, no blur, no gradients, no sub-pixel detail, nearest-neighbor scaling only. 输出尺寸是网格的整数倍，例如 32×32 放大到 512×512。",
+        "category": "约束",
+        "uses": 13,
+        "createdAt": "2026-09-12 10:00"
+      },
+      {
+        "key": "p10",
+        "title": "游戏画面示意 16:9",
+        "body": "in-game screenshot mockup, 16:9, side view camera, player at the left third of the frame, health bar top-left, item slots bottom-center, clear separation between foreground and background. 画面要像真实的游戏截图。",
+        "category": "构图",
+        "uses": 5,
+        "createdAt": "2026-09-11 10:00"
+      },
+      {
+        "key": "p11",
+        "title": "赛璐璐日系立绘",
+        "body": "anime cel-shaded character illustration, clean thin lineart, two-tone hard shadows, bright saturated colors, full body standing pose, white background. 平涂上色，方便后期抠图。",
+        "category": "风格",
+        "uses": 6,
+        "createdAt": "2026-09-10 10:00"
+      },
+      {
+        "key": "p12",
+        "title": "像素风负面词",
+        "body": "anti-aliasing, smooth gradients, soft brush, painterly, 3D render, photorealistic, blur, mixed pixel sizes, inconsistent resolution, noisy dithering",
+        "category": "负面词",
+        "uses": 18,
+        "createdAt": "2026-09-09 10:00"
+      }
+    ],
+    "styles": [
+      {
+        "key": "s1",
+        "name": "16-bit 暗调像素",
+        "desc": "低饱和的夜色，只用提灯的暖光做点缀。",
+        "palette": [
+          "#1B1F2E",
+          "#2F3A52",
+          "#56627A",
+          "#C9A15A",
+          "#F2D28B"
+        ],
+        "prompt": "16-bit pixel art, dark moody palette, desaturated navy and slate tones, warm lantern light as the only accent, crisp edges, no anti-aliasing, 320×180 base resolution. 雾用 2–3 级抖动表现，暗部不要纯黑。",
+        "sample": "scene_harbor",
+        "createdAt": "2026-09-15 09:00"
+      },
+      {
+        "key": "s2",
+        "name": "水彩绘本",
+        "desc": "纸张纹理和柔和的晕染，温暖的童话感。",
+        "palette": [
+          "#F4ECDC",
+          "#D9B99B",
+          "#A7B89A",
+          "#6D8FA6",
+          "#4A3F38"
+        ],
+        "prompt": "watercolor storybook illustration, soft wet-on-wet washes, visible paper grain, loose ink linework, warm muted palette, generous white space. 边缘自然晕开，不要硬描边。",
+        "sample": "style_watercolor",
+        "createdAt": "2026-09-14 09:00"
+      },
+      {
+        "key": "s3",
+        "name": "赛璐璐日系",
+        "desc": "干净的线稿、两阶硬阴影、明亮饱和的配色。",
+        "palette": [
+          "#FBE3D4",
+          "#F28F8F",
+          "#6CB4EE",
+          "#2E4A7D",
+          "#1F1F2E"
+        ],
+        "prompt": "anime cel shading, clean thin lineart, two-tone hard shadows, bright saturated colors, crisp highlights on hair and eyes. 平涂上色，不要厚涂笔触。",
+        "sample": "style_cel",
+        "createdAt": "2026-09-13 09:00"
+      },
+      {
+        "key": "s4",
+        "name": "低多边形 3D",
+        "desc": "块面分明的低模，配柔和的环境光。",
+        "palette": [
+          "#2D4A53",
+          "#4F7C7A",
+          "#8FB3A0",
+          "#E3D7B8",
+          "#D9826A"
+        ],
+        "prompt": "low poly 3D render, faceted geometry, flat shading per face, soft ambient occlusion, teal and sand palette, isometric camera, clean studio lighting. 面数少，轮廓清楚。",
+        "sample": "style_lowpoly",
+        "createdAt": "2026-09-12 09:00"
+      },
+      {
+        "key": "s5",
+        "name": "扁平矢量",
+        "desc": "几何形状和纯色块，没有描边和纹理。",
+        "palette": [
+          "#264653",
+          "#2A9D8F",
+          "#E9C46A",
+          "#F4A261",
+          "#E76F51"
+        ],
+        "prompt": "flat vector illustration, simple geometric shapes, solid color fills, no outlines, no gradients, no texture, bold limited palette. 适合做 UI 插图和图标。",
+        "sample": null,
+        "createdAt": "2026-09-11 09:00"
+      },
+      {
+        "key": "s6",
+        "name": "剪纸拼贴",
+        "desc": "层层叠起的彩纸，带手工撕边的质感。",
+        "palette": [
+          "#EFE2C6",
+          "#E0704F",
+          "#7A9E7E",
+          "#3D5A80",
+          "#22223B"
+        ],
+        "prompt": "paper cut-out collage, layered colored paper, subtle shadows between layers, torn edges, visible paper fibers, handcrafted diorama look. 每一层只用一种颜色。",
+        "sample": null,
+        "createdAt": "2026-09-10 09:00"
+      },
+      {
+        "key": "s7",
+        "name": "厚涂写实",
+        "desc": "厚重的笔触和体积光，偏写实的概念设定。",
+        "palette": [
+          "#1E1A17",
+          "#4B3B2F",
+          "#8C6A4A",
+          "#C9A97C",
+          "#E8DCC6"
+        ],
+        "prompt": "painterly concept art, thick impasto brushwork, realistic lighting and volume, dramatic rim light, muted earthy tones, visible brush texture. 重点刻画材质和光影。",
+        "sample": null,
+        "createdAt": "2026-09-09 09:00"
+      },
+      {
+        "key": "s8",
+        "name": "1-bit 单色",
+        "desc": "只有一深一浅两种颜色，靠抖动表现明暗。",
+        "palette": [
+          "#0B0B0B",
+          "#F4F1E8",
+          "#312F28",
+          "#B1AEA8",
+          "#E0DBCD"
+        ],
+        "prompt": "1-bit pixel art, only two colors (ink and paper), ordered dithering for shading, bold silhouettes, no gray tones, 400×240 screen. 明暗全部靠抖动图案。",
+        "sample": null,
+        "createdAt": "2026-09-08 09:00"
+      },
+      {
+        "key": "s9",
+        "name": "PS1 复古 3D",
+        "desc": "低分辨率贴图、顶点抖动和远处的雾。",
+        "palette": [
+          "#1A1423",
+          "#3D3B5C",
+          "#7B6D8D",
+          "#C2A878",
+          "#6B8F71"
+        ],
+        "prompt": "PS1-era retro 3D, low-poly models, 64×64 textures with nearest-neighbor filtering, affine texture warping, vertex jitter, distance fog, 320×240 render. 画面带一点色带和噪点。",
+        "sample": null,
+        "createdAt": "2026-09-07 09:00"
+      }
+    ]
+  },
+  "project": {
+    "name": "雾港",
+    "pitch": "守夜人提灯穿过会吞噬记忆的雾",
+    "genres": [
+      "2D 横版动作",
+      "轻解谜"
+    ],
+    "platforms": [
+      "PC（Steam）",
+      "Switch"
+    ],
+    "targetPlayers": "喜欢氛围和探索、一次玩 20–40 分钟的独立游戏玩家",
+    "sessionLength": "20–40 分钟",
+    "style": "s1",
+    "resolution": {
+      "w": 320,
+      "h": 180
+    },
+    "scaling": "integer",
+    "sizes": {
+      "tile": {
+        "w": 16,
+        "h": 16
+      },
+      "character": {
+        "w": 32,
+        "h": 32
+      },
+      "boss": {
+        "w": 64,
+        "h": 64
+      },
+      "icon": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "cover": "a1",
+    "pinnedPrompts": [
+      "p1",
+      "p9",
+      "p8"
+    ],
+    "createdAt": "2026-08-28 10:00",
+    "updatedAt": "2026-09-24 09:40",
+    "assets": [
+      {
+        "key": "a1",
+        "file": "scene_harbor.jpg",
+        "name": "主视觉草案 v2",
+        "category": "概念图",
+        "tags": [
+          "主视觉",
+          "夜景"
+        ],
+        "addedAt": "2026-09-24 10:42"
+      },
+      {
+        "key": "a2",
+        "file": "char_watchman.jpg",
+        "name": "守夜人 立绘",
+        "category": "角色",
+        "tags": [
+          "主角",
+          "立绘"
+        ],
+        "addedAt": "2026-09-24 10:15"
+      },
+      {
+        "key": "a3",
+        "file": "mon_fog.jpg",
+        "name": "雾妖 设定",
+        "category": "角色",
+        "tags": [
+          "敌人",
+          "Boss"
+        ],
+        "addedAt": "2026-09-24 09:58"
+      },
+      {
+        "key": "a4",
+        "file": "scene_harbor.jpg",
+        "name": "第3关 沉船码头 氛围图",
+        "category": "场景",
+        "tags": [
+          "第3关",
+          "氛围"
+        ],
+        "addedAt": "2026-09-24 09:30"
+      },
+      {
+        "key": "a5",
+        "file": "shot_gameplay.jpg",
+        "name": "游戏画面 0924",
+        "category": "截图",
+        "tags": [
+          "战斗"
+        ],
+        "addedAt": "2026-09-24 09:12"
+      },
+      {
+        "key": "a6",
+        "file": "ref_lantern.jpg",
+        "name": "提灯 参考",
+        "category": "参考",
+        "tags": [
+          "道具",
+          "光照"
+        ],
+        "addedAt": "2026-09-23 18:30"
+      },
+      {
+        "key": "a7",
+        "file": "ui_kit.jpg",
+        "name": "UI 草案",
+        "category": "概念图",
+        "tags": [
+          "UI",
+          "HUD"
+        ],
+        "addedAt": "2026-09-23 16:20"
+      },
+      {
+        "key": "a8",
+        "file": "icons_items.jpg",
+        "name": "道具图标 第一批",
+        "category": "概念图",
+        "tags": [
+          "图标",
+          "16×16"
+        ],
+        "addedAt": "2026-09-23 15:02"
+      },
+      {
+        "key": "a9",
+        "file": "scene_forest.jpg",
+        "name": "雾中森林 远景",
+        "category": "场景",
+        "tags": [
+          "第2关",
+          "远景"
+        ],
+        "addedAt": "2026-09-23 11:40"
+      },
+      {
+        "key": "a10",
+        "file": "shot_gameplay.jpg",
+        "name": "游戏画面 0922",
+        "category": "截图",
+        "tags": [
+          "探索"
+        ],
+        "addedAt": "2026-09-22 14:30"
+      },
+      {
+        "key": "a11",
+        "file": "scene_lighthouse.jpg",
+        "name": "灯塔内部 草图",
+        "category": "场景",
+        "tags": [
+          "终章",
+          "室内"
+        ],
+        "addedAt": "2026-09-22 11:05"
+      },
+      {
+        "key": "a12",
+        "file": "mon_fog.jpg",
+        "name": "雾妖 变体",
+        "category": "角色",
+        "tags": [
+          "敌人"
+        ],
+        "addedAt": "2026-09-22 10:20"
+      },
+      {
+        "key": "a13",
+        "file": "tiles_stone.jpg",
+        "name": "石砖瓦片 16×16",
+        "category": "概念图",
+        "tags": [
+          "瓦片",
+          "地形"
+        ],
+        "addedAt": "2026-09-21 17:45"
+      },
+      {
+        "key": "a14",
+        "file": "scene_harbor.jpg",
+        "name": "主视觉草案 v1",
+        "category": "概念图",
+        "tags": [
+          "主视觉"
+        ],
+        "addedAt": "2026-09-21 15:10"
+      },
+      {
+        "key": "a15",
+        "file": "mon_slime.jpg",
+        "name": "史莱姆 雾化版",
+        "category": "角色",
+        "tags": [
+          "敌人",
+          "小怪"
+        ],
+        "addedAt": "2026-09-21 09:40"
+      },
+      {
+        "key": "a16",
+        "file": "char_watchman.jpg",
+        "name": "守夜人 三视图",
+        "category": "角色",
+        "tags": [
+          "主角",
+          "三视图"
+        ],
+        "addedAt": "2026-09-17 20:14"
+      },
+      {
+        "key": "a17",
+        "file": "scene_harbor.jpg",
+        "name": "第1关 雾港码头",
+        "category": "场景",
+        "tags": [
+          "第1关",
+          "夜景"
+        ],
+        "addedAt": "2026-09-16 15:32"
+      },
+      {
+        "key": "a18",
+        "file": "shot_gameplay.jpg",
+        "name": "游戏画面 0915",
+        "category": "截图",
+        "tags": [
+          "战斗"
+        ],
+        "addedAt": "2026-09-15 22:08"
+      },
+      {
+        "key": "a19",
+        "file": "shot_gameplay.jpg",
+        "name": "游戏画面 0912",
+        "category": "截图",
+        "tags": [
+          "探索"
+        ],
+        "addedAt": "2026-09-12 21:47"
+      },
+      {
+        "key": "a20",
+        "file": "style_watercolor.jpg",
+        "name": "水彩 氛围参考",
+        "category": "参考",
+        "tags": [
+          "配色"
+        ],
+        "addedAt": "2026-09-10 14:25"
+      },
+      {
+        "key": "a21",
+        "file": "style_lowpoly.jpg",
+        "name": "低多边形 光影参考",
+        "category": "参考",
+        "tags": [
+          "光影"
+        ],
+        "addedAt": "2026-09-08 11:03"
+      },
+      {
+        "key": "a22",
+        "file": "style_cel.jpg",
+        "name": "赛璐璐 角色比例参考",
+        "category": "参考",
+        "tags": [
+          "角色比例"
+        ],
+        "addedAt": "2026-09-05 16:40"
+      },
+      {
+        "key": "a23",
+        "file": "ref_lantern.jpg",
+        "name": "提灯 光晕参考",
+        "category": "参考",
+        "tags": [
+          "光照"
+        ],
+        "addedAt": "2026-09-03 10:18"
+      },
+      {
+        "key": "a24",
+        "file": "scene_forest.jpg",
+        "name": "雾中森林 色彩稿",
+        "category": "概念图",
+        "tags": [
+          "配色",
+          "第2关"
+        ],
+        "addedAt": "2026-08-30 19:55"
+      }
+    ],
+    "notes": [
+      {
+        "title": "核心玩法「提灯与雾」",
+        "category": "玩法",
+        "done": false,
+        "updatedAt": "2026-09-24 14:32",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "一句话：灯油既是时间，也是记忆。提灯照到的地方雾会退开，照不到的地方，雾会一点点吃掉你记住的东西。"
+          },
+          {
+            "type": "p",
+            "text": "灯油满格 100，常亮每秒耗 1。按住「拨亮」，光圈半径从 3 格扩到 6 格，消耗变成每秒 3。灯油见底后 10 秒内没补上，就回到最近的一根灯柱。"
+          },
+          {
+            "type": "image",
+            "asset": "a5"
+          },
+          {
+            "type": "p",
+            "text": "在雾里连续待 5 秒会丢一条记忆，按顺序丢：已探索的地图 → 机关的解法 → NPC 的名字。丢掉的记忆变成碎片留在原地，回去捡就能找回。"
+          },
+          {
+            "type": "todo",
+            "text": "每关 2–3 根灯柱，两根之间步行不超过 90 秒",
+            "checked": true
+          },
+          {
+            "type": "todo",
+            "text": "拨亮会把附近的雾妖引过来，让「看得更远」和「更安全」二选一",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "内测目标：新手打完第 1 关，平均还剩 30% 以上灯油",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "title": "待定问题清单",
+        "category": "玩法",
+        "done": false,
+        "updatedAt": "2026-09-24 10:05",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "下周三（9 月 30 日）评审前要定下来："
+          },
+          {
+            "type": "todo",
+            "text": "丢掉的记忆能不能永久找不回？倾向：能找回，但必须回到丢失的地方",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "死亡惩罚：回灯柱并扣一半灯油，还是只回灯柱？",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "Switch 掌机模式下字太小，UI 要不要单独放大到 1.5 倍",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "章节数定为 5 章，每章 30–40 分钟",
+            "checked": true
+          },
+          {
+            "type": "todo",
+            "text": "一周目总时长定 4 小时还是 6 小时",
+            "checked": false
+          },
+          {
+            "type": "p",
+            "text": "目标玩家一次只玩 20–40 分钟，所以每章中间至少要有 2 个存档点，存档点就用灯柱。"
+          }
+        ]
+      },
+      {
+        "title": "第一章故事大纲",
+        "category": "故事",
+        "done": false,
+        "updatedAt": "2026-09-23 22:10",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "第一章「落潮」，目标时长 35 分钟，3 个场景：灯塔、老码头、沉船码头。"
+          },
+          {
+            "type": "p",
+            "text": "开场：守夜人阿棠在灯塔里醒来，港口的雾已经三天没散。老船长只留下一张纸条：“别让灯灭。”"
+          },
+          {
+            "type": "p",
+            "text": "中段：沿老码头去找失联的补给船。第一次遇到雾妖；被雾吞过的渔民站在岸边，想不起自己孩子的名字。"
+          },
+          {
+            "type": "p",
+            "text": "结尾：在沉船码头点亮第一根灯柱，雾退开一截，露出船身上刻着的名字——阿棠。"
+          },
+          {
+            "type": "image",
+            "asset": "a17"
+          },
+          {
+            "type": "todo",
+            "text": "开场对白不超过 6 句，第 2 分钟之前让玩家拿到提灯",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "“船上刻着自己的名字”留到第三章回收",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "title": "守夜人角色设定",
+        "category": "角色",
+        "done": true,
+        "updatedAt": "2026-09-22 16:40",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "阿棠，27 岁，灯塔的第三代守夜人。话少，习惯数数：数台阶、数浪、数剩下的灯油。"
+          },
+          {
+            "type": "p",
+            "text": "外观：深蓝旧呢子大衣，左手常年提灯，右手缠着绷带（小时候被灯罩烫伤）。32×32 里要一眼认出两样东西：提灯，和被风吹起的大衣下摆。"
+          },
+          {
+            "type": "image",
+            "asset": "a2"
+          },
+          {
+            "type": "p",
+            "text": "动作 5 组：走、跑、攀爬、拨亮、蹲下护灯，每组 4–6 帧，播放 8 帧/秒。"
+          },
+          {
+            "type": "todo",
+            "text": "待机加一个低头看灯油的小动作",
+            "checked": true
+          },
+          {
+            "type": "todo",
+            "text": "大衣的蓝和雾的蓝灰拉开明度，至少差 2 档",
+            "checked": true
+          }
+        ]
+      },
+      {
+        "title": "雾妖设计",
+        "category": "角色",
+        "done": false,
+        "updatedAt": "2026-09-21 11:15",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "雾妖不是怪物，是被雾吞掉的记忆聚成的影子。它的样子取决于吞过什么：渔网、船锚、半张人脸。"
+          },
+          {
+            "type": "p",
+            "text": "行为：在光圈外游荡；玩家拨亮时会朝光源靠过来，速度 1.5 格/秒。被光圈边缘持续照到 2 秒就散开，掉 1 块记忆碎片。"
+          },
+          {
+            "type": "p",
+            "text": "三种体型：小型 16×16，成群出现；中型 32×32；大型 64×64，是第 5 章的 Boss。"
+          },
+          {
+            "type": "image",
+            "asset": "a3"
+          },
+          {
+            "type": "todo",
+            "text": "消散效果用 4 帧抖动像素，不用透明度渐变",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "小雾妖同屏最多 6 只，再多就看不清光圈边缘",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "title": "第 3 关「沉船码头」",
+        "category": "关卡",
+        "done": false,
+        "updatedAt": "2026-09-20 15:05",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "目标时长 12 分钟，横向 14 屏，每屏 320×180。"
+          },
+          {
+            "type": "p",
+            "text": "第 1–3 屏教「蹲下护灯」：海风一阵一阵，站着会被吹灭。第 5–8 屏在倾斜的船身上攀爬，整段只有 1 处灯油补给。第 10 屏开始涨潮，逼玩家往高处走。"
+          },
+          {
+            "type": "p",
+            "text": "码头地面用石砖瓦片（16×16），潮湿的部分多加一档高光。"
+          },
+          {
+            "type": "image",
+            "asset": "a13"
+          },
+          {
+            "type": "p",
+            "text": "潮间带放史莱姆当小怪，改成灰绿配色；被灯照到会缩成一团，移动速度减半。"
+          },
+          {
+            "type": "image",
+            "asset": "a15"
+          },
+          {
+            "type": "todo",
+            "text": "灯柱放在第 6 屏和第 12 屏",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "涨潮速度每秒 0.5 格，给走得慢的玩家留 20% 余量",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "title": "美术方向「16-bit 暗调像素」",
+        "category": "美术",
+        "done": true,
+        "updatedAt": "2026-09-18 20:30",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "基准分辨率 320×180，整数缩放到 1080p（6 倍）。瓦片 16×16，角色 32×32，Boss 64×64，图标 16×16。"
+          },
+          {
+            "type": "p",
+            "text": "色板 32 色，整体压暗。雾只用 3 档蓝灰；暖色只留给灯光和灯油，面积不超过画面的 15%。"
+          },
+          {
+            "type": "p",
+            "text": "不做抗锯齿，不用模糊；雾的层次靠抖动像素（dither）表现。"
+          },
+          {
+            "type": "image",
+            "asset": "a6"
+          },
+          {
+            "type": "todo",
+            "text": "定下 32 色色板",
+            "checked": true
+          },
+          {
+            "type": "todo",
+            "text": "出一张 320×180 的标准画面，给所有人对齐",
+            "checked": true
+          }
+        ]
+      },
+      {
+        "title": "UI 草案",
+        "category": "美术",
+        "done": false,
+        "updatedAt": "2026-09-17 13:20",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "原则：画面里尽量没有 UI。灯油靠提灯本身的亮度和左上角 8 格刻度表示，不显示数字。"
+          },
+          {
+            "type": "p",
+            "text": "暂停菜单做成守夜人的航海日志：左页是地图，右页是已经找回的记忆。中文用 12×12 像素点阵字；对话框最多 2 行，每行 14 个字。"
+          },
+          {
+            "type": "image",
+            "asset": "a7"
+          },
+          {
+            "type": "image",
+            "asset": "a8"
+          },
+          {
+            "type": "todo",
+            "text": "道具图标统一 16×16，外圈 1 像素深色描边",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "手柄和键鼠的按键提示各出一套",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "title": "音效想法",
+        "category": "美术",
+        "done": false,
+        "updatedAt": "2026-09-15 23:45",
+        "blocks": [
+          {
+            "type": "p",
+            "text": "整体要安静。环境音只有浪、风和远处的雾笛；音乐只在点亮灯柱时出现，每次 8–12 秒。"
+          },
+          {
+            "type": "p",
+            "text": "提灯常亮时有很轻的火苗声；灯油低于 20% 开始出现不规律的噼啪声，代替血条警告。"
+          },
+          {
+            "type": "p",
+            "text": "雾妖没有脚步声。它靠近时环境音整体压低 6 dB，像耳鸣。"
+          },
+          {
+            "type": "todo",
+            "text": "找 3 段真实的雾笛录音做参考",
+            "checked": false
+          },
+          {
+            "type": "todo",
+            "text": "丢失记忆的音效：倒放的八音盒，0.8 秒",
+            "checked": false
+          }
+        ]
+      }
+    ]
+  }
+}

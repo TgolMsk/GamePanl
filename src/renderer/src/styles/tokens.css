@@ -1,0 +1,105 @@
+/* 设计变量：参考 macOS 原生应用（访达 / 照片 / 备忘录 / 系统设置）。
+   浅色为默认，跟随系统切换深色；强调色取系统强调色（App 启动时写入 --acc）。
+   只用这些变量，不要在组件里写死颜色。 */
+
+:root {
+  --acc: #0071e3;
+  --acc-text: #ffffff;
+
+  --win: #ffffff;
+  --side: transparent; /* 侧栏透出窗口毛玻璃（vibrancy: sidebar） */
+  --side-fallback: #ececf0;
+  --bg2: #f5f5f7;
+  --card: #ffffff;
+  --fill: rgba(118, 118, 128, 0.14);
+  --fill2: rgba(118, 118, 128, 0.09);
+  --sep: rgba(60, 60, 67, 0.16);
+  --tx: #1d1d1f;
+  --tx2: #5f5f64;
+  --tx3: #aeaeb2;
+  --sel: rgba(0, 0, 0, 0.075);
+  --ok: #248a3d;
+  --danger: #d70015;
+  --chk1: #ffffff;
+  --chk2: #ececef;
+  --scrim: rgba(0, 0, 0, 0.28);
+  --hud: rgba(28, 28, 30, 0.9);
+
+  --r-ctl: 6px;
+  --r-field: 7px;
+  --r-img: 8px;
+  --r-card: 10px;
+  --r-sheet: 12px;
+
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB',
+    'Helvetica Neue', sans-serif;
+  --mono: 'SF Mono', ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 232px;
+  --toolbar-h: 52px;
+  --inspector-w: 300px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --win: #1e1e20;
+    --side-fallback: #28282b;
+    --bg2: #161618;
+    --card: #2a2a2d;
+    --fill: rgba(118, 118, 128, 0.26);
+    --fill2: rgba(118, 118, 128, 0.16);
+    --sep: rgba(255, 255, 255, 0.1);
+    --tx: #f5f5f7;
+    --tx2: #a8a8ad;
+    --tx3: #636366;
+    --sel: rgba(255, 255, 255, 0.1);
+    --ok: #30d158;
+    --danger: #ff453a;
+    --chk1: #2a2a2d;
+    --chk2: #333336;
+    --scrim: rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--tx);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+  user-select: text;
+}
+
+.mono {
+  font-family: var(--mono);
+}

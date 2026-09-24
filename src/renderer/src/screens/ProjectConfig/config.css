@@ -1,0 +1,520 @@
+/* 项目配置（.cf-…）：系统设置式分组表单 + 右侧「项目一页纸」。颜色只用 tokens 变量。 */
+
+.cf-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  container-type: inline-size;
+}
+
+.cf-acc {
+  color: var(--acc);
+}
+
+/* ---------- 项目头 ---------- */
+.cf-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px 12px 12px;
+}
+.cf-cover {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: var(--fill2);
+  outline: none;
+}
+.cf-cover > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cf-cover-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  background: var(--img-pill);
+  color: var(--on-dark);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.cf-cover:hover .cf-cover-hint,
+.cf-cover:focus-visible .cf-cover-hint {
+  opacity: 1;
+}
+.cf-cover:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.cf-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cf-ttl {
+  display: block;
+  width: calc(100% + 6px);
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 0.5px solid transparent;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  outline: none;
+}
+.cf-ttl::placeholder {
+  color: var(--tx3);
+}
+.cf-ttl:hover {
+  border-color: var(--sep);
+}
+.cf-ttl:focus {
+  border-color: var(--acc);
+  background: var(--card);
+  box-shadow: 0 0 0 3px var(--ring-soft);
+}
+.cf-name {
+  height: 32px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.cf-pitch {
+  height: 24px;
+  font-size: 13px;
+  color: var(--tx2);
+}
+
+/* ---------- 基本 ---------- */
+.cf-chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rowi.cf-chiprow .k {
+  padding-top: 3px;
+}
+.rowi.cf-arearow .k {
+  padding-top: 6px;
+}
+
+/* ---------- 美术风格 ---------- */
+.rowi.cf-style {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.cf-sthumb {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: var(--fill2);
+  color: var(--tx3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cf-sthumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cf-sinfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cf-sname {
+  font-weight: 600;
+}
+.cf-bars,
+.cf-strip {
+  display: flex;
+}
+.cf-bars {
+  width: 100%;
+  height: 100%;
+}
+.cf-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+}
+.cf-bars > span,
+.cf-strip > span {
+  flex: 1;
+}
+
+/* 可复制的提示词块（风格提示词、常用提示词） */
+.rowi.cf-promptrow {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.rowi.cf-promptrow .k {
+  padding-top: 8px;
+}
+.cf-ptx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-field);
+  background: var(--fill2);
+  color: var(--tx);
+  font: inherit;
+  text-align: left;
+  cursor: copy;
+  outline: none;
+}
+.cf-ptx:hover {
+  background: var(--fill);
+}
+.cf-ptx:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.cf-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cf-ptext {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.cf-okt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--acc);
+  white-space: nowrap;
+}
+.cf-cpi {
+  display: inline-flex;
+  flex: none;
+  padding-top: 1px;
+  color: var(--tx2);
+}
+
+/* ---------- 分辨率和尺寸 ---------- */
+.rowi.cf-scale .ctl {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.cf-szg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 0.5px solid var(--sep);
+}
+.cf-szc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+}
+.cf-szc:nth-child(even) {
+  border-left: 0.5px solid var(--sep);
+}
+.cf-szc:nth-child(n + 3) {
+  border-top: 0.5px solid var(--sep);
+}
+.cf-szc > label {
+  width: 34px;
+  flex: none;
+}
+.cf-szc > .lbl {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-x {
+  color: var(--tx2);
+}
+@container (max-width: 600px) {
+  .cf-szg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cf-szc:nth-child(even) {
+    border-left: 0;
+  }
+  .cf-szc:nth-child(n + 2) {
+    border-top: 0.5px solid var(--sep);
+  }
+}
+
+/* ---------- 常用提示词（检查器里的卡片） ---------- */
+.cf-gh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex: none;
+}
+.cf-gh .gh {
+  padding-bottom: 0;
+}
+.cf-gh .grow {
+  flex: 1;
+}
+.cf-pempty {
+  padding: 10px 12px;
+  flex: none;
+}
+.card.cf-pitem {
+  flex: none;
+}
+.cf-pcard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0.5px solid var(--sep);
+  border-radius: var(--r-card);
+  background: var(--card);
+  color: var(--tx);
+  font: inherit;
+  text-align: left;
+  cursor: copy;
+  outline: none;
+}
+.cf-pcard:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+/* 标题行和正文也用在「添加常用提示词」的列表里 */
+.cf-pcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cf-ptitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cf-pcard .cf-ptitle {
+  padding-right: 30px;
+}
+.cf-ptitle > .t {
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-uses {
+  margin-left: auto;
+  padding-left: 6px;
+  flex: none;
+  font-size: 11px;
+  color: var(--tx2);
+  white-space: nowrap;
+}
+.cf-pbody {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--tx2);
+}
+.cf-pfoot {
+  display: flex;
+  align-items: center;
+}
+.cf-pfoot .hv {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--acc);
+  opacity: 0;
+}
+.cf-pcard:hover .hv,
+.cf-pcard:focus-visible .hv {
+  opacity: 1;
+}
+.done.cf-pdone {
+  top: auto;
+  bottom: 7px;
+  left: 12px;
+}
+
+/* ---------- 危险操作 ---------- */
+.cf-dtext {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.btn.cf-danger {
+  color: var(--danger);
+}
+
+/* ---------- 检查器：项目一页纸 ---------- */
+.inspector.cf-insp {
+  padding: 20px 16px 24px;
+  gap: 10px;
+}
+.cf-insp > .gh {
+  padding-bottom: 0;
+}
+.cf-onep {
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tx);
+  user-select: text;
+  flex: none;
+}
+.btn.cf-full {
+  width: 100%;
+}
+
+/* ---------- 选择 sheet ---------- */
+.cf-grid {
+  display: grid;
+  gap: 18px 16px;
+}
+.cf-g3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.cf-g5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px 12px;
+}
+.cf-pick {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.cf-frame {
+  position: relative;
+  display: block;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: var(--fill2);
+}
+.cf-frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cf-sq {
+  aspect-ratio: 1;
+}
+.cf-st {
+  height: 116px;
+}
+.cf-pick.on .cf-frame {
+  box-shadow: 0 0 0 3px var(--acc);
+}
+.cf-pick:focus-visible .cf-frame {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.cf-pick.on:focus-visible .cf-frame {
+  box-shadow: 0 0 0 3px var(--acc);
+}
+.cf-pick:hover .cap {
+  color: var(--acc);
+}
+.cap.cf-pname {
+  font-weight: 500;
+}
+
+.cf-plist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cf-prk {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0.5px solid var(--sep);
+  border-radius: var(--r-card);
+  background: var(--card);
+  color: var(--tx);
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.cf-prk:hover:not(:disabled) {
+  background: var(--bg2);
+}
+.cf-prk.on {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 7%, var(--card));
+}
+.cf-prk.on:hover {
+  background: color-mix(in srgb, var(--acc) 10%, var(--card));
+}
+.cf-prk:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.cf-prk:disabled {
+  opacity: 0.55;
+}
+.cf-prk .ck {
+  display: inline-flex;
+  flex: none;
+  color: var(--tx3);
+}
+.cf-prk.on .ck {
+  color: var(--acc);
+}
+.cf-none {
+  padding: 120px 0;
+  text-align: center;
+  color: var(--tx2);
+}
