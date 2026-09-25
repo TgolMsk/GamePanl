@@ -2,11 +2,13 @@
 // 主进程在 src/main/ipc.ts 里按 IPC 通道名一一实现；界面只通过 window.gp 访问数据。
 
 import type {
+  AppCommand,
   AppInfo,
   DataChange,
   ID,
   ImageRef,
   LibImage,
+  MenuItemSpec,
   Note,
   Project,
   ProjectAsset,
@@ -64,6 +66,8 @@ export interface GpApi {
     update(id: ID, patch: ProjectPatch): Promise<Project>
     /** 整个项目文件夹移到系统废纸篓 */
     remove(id: ID): Promise<void>
+    /** 在访达中打开项目文件夹 */
+    reveal(id: ID): Promise<void>
 
     listNotes(projectId: ID): Promise<Note[]>
     createNote(projectId: ID, input?: NoteInput): Promise<Note>
@@ -89,6 +93,10 @@ export interface GpApi {
   shell: {
     /** 在访达中显示这张图片的原文件 */
     revealImage(ref: ImageRef): Promise<void>
+    /** 用系统默认应用（预览、Photoshop…）打开原图 */
+    openImage(ref: ImageRef): Promise<void>
+    /** 开始一次系统原生拖拽：把原图文件拖到访达、ChatGPT、PS 等任何能接收文件的地方。在 dragstart 里 preventDefault 后调用 */
+    dragImage(ref: ImageRef): Promise<void>
   }
 
   /** 在线更新：到 GitHub Releases 按版本号检测，安装包下载到「下载」文件夹后由用户打开安装 */
@@ -105,6 +113,11 @@ export interface GpApi {
     setAutoCheck(on: boolean): Promise<void>
   }
 
+  menu: {
+    /** 在鼠标位置弹出系统原生右键菜单；返回点中项的 id，没选返回 null */
+    popup(items: MenuItemSpec[]): Promise<string | null>
+  }
+
   /** 拖进窗口的 File 对象对应的本地路径（Electron webUtils） */
   pathForFile(file: File): string
 
@@ -112,6 +125,8 @@ export interface GpApi {
   onDataChanged(listener: (change: DataChange) => void): () => void
   /** 订阅更新状态变化；返回取消订阅函数 */
   onUpdateState(listener: (state: UpdateState) => void): () => void
+  /** 订阅应用菜单发来的命令（新建项目、新建笔记、添加图片、查找）；返回取消订阅函数 */
+  onCommand(listener: (command: AppCommand) => void): () => void
 }
 
 /** 图片地址：主进程注册的 gp:// 协议。thumb 给出缩略图的最长边像素，不给则是原图 */
@@ -127,3 +142,5 @@ export function imageUrl(ref: ImageRef, thumb?: number): string {
 export const DATA_CHANGED_CHANNEL = 'data:changed'
 /** 更新状态变化事件通道 */
 export const UPDATE_STATE_CHANNEL = 'update:state'
+/** 应用菜单命令事件通道 */
+export const APP_COMMAND_CHANNEL = 'app:command'

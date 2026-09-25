@@ -1,5 +1,7 @@
 import './notes.css'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCommand } from '@renderer/app/commands'
+import { menuSeparator, showContextMenu } from '@renderer/app/contextMenu'
 import { useNotes, useProject } from '@renderer/app/data'
 import { hud } from '@renderer/app/hud'
 import {
@@ -13,6 +15,7 @@ import {
   Toolbar,
   type SegmentedOption
 } from '@renderer/ui'
+import { NOTE_CATEGORIES } from '@shared/types'
 import type { ImageRef, Note, NoteCategory } from '@shared/types'
 import { useImageSource } from './images'
 import { NoteEditor } from './NoteEditor'
@@ -40,7 +43,8 @@ export default function ProjectNotesScreen({ projectId }: { projectId: string })
   const project = useProject(projectId)
   const notes = useNotes(projectId)
   const images = useImageSource(projectId)
-  const { draft, edit, flush, enqueue, show } = useNoteDraft(projectId, notes)
+  const { draft, edit, flush, enqueue, peek, show } = useNoteDraft(projectId, notes)
+  const editorRef = useRef<HTMLElement>(null)
 
   const [cat, setCat] = useState<CategoryFilter>('all')
   const [q, setQ] = useState('')
@@ -102,13 +106,18 @@ export default function ProjectNotesScreen({ projectId }: { projectId: string })
     }
   }
 
-  const toggleDone = (n: Note): void => {
-    if (draft && n.id === draft.id) {
-      edit((x) => ({ ...x, done: !x.done }))
+  // ⇧⌘N（应用菜单「文件 › 新建笔记」，侧栏右键「新建笔记」也走这里）
+  useCommand('new-note', () => void create())
+
+  /** 改一条笔记的完成 / 分类：正在编辑的那条改草稿并立即保存，其余直接整条保存 */
+  const patchNote = (n: Note, patch: Partial<Pick<Note, 'done' | 'category'>>): void => {
+    const d = peek()
+    if (d && n.id === d.id) {
+      edit((x) => ({ ...x, ...patch }))
       flush()
       return
     }
-    const next = { ...n, done: !n.done }
+    const next = { ...n, ...patch }
     notes.mutate((list) => replaceNote(list, next))
     enqueue(() => window.gp.projects.saveNote(projectId, next)).then(
       (saved) => notes.mutate((list) => replaceNote(list, saved)),
@@ -119,10 +128,56 @@ export default function ProjectNotesScreen({ projectId }: { projectId: string })
     )
   }
 
+  const toggleDone = (n: Note): void => patchNote(n, { done: !n.done })
+
+  /** 正在按分类筛选时跟过去，免得改了分类的这条从列表里消失 */
+  const followFilter = (c: NoteCategory): void => {
+    if (cat !== 'all' && c !== cat) setCat(isFilterCategory(c) ? c : 'all')
+  }
+
   const changeCategory = (c: NoteCategory): void => {
     edit((x) => ({ ...x, category: c }))
-    // 正在按分类筛选时跟过去，免得这条从列表里消失
-    if (cat !== 'all' && c !== cat) setCat(isFilterCategory(c) ? c : 'all')
+    followFilter(c)
+  }
+
+  const setCategoryOf = (n: Note, c: NoteCategory): void => {
+    if (n.category !== c) patchNote(n, { category: c })
+    followFilter(c)
+  }
+
+  /** 列表行右键：先选中它，菜单作用在它上面 */
+  const onRowMenu = async (e: ReactMouseEvent<HTMLDivElement>, n: Note): Promise<void> => {
+    setSelId(n.id)
+    const id = await showContextMenu(e, [
+      { id: 'done', label: n.done ? '标为未完成' : '标为完成' },
+      {
+        id: 'cat',
+        label: '分类',
+        submenu: NOTE_CATEGORIES.map((c) => ({ id: `cat:${c}`, label: c, checked: c === n.category }))
+      },
+      menuSeparator,
+      { id: 'trash', label: '移到废纸篓', destructive: true }
+    ])
+    if (id === null) return
+    if (id === 'done') {
+      toggleDone(n)
+      return
+    }
+    if (id === 'trash') {
+      setDeleting(n)
+      return
+    }
+    const c = NOTE_CATEGORIES.find((x) => `cat:${x}` === id)
+    if (c) setCategoryOf(n, c)
+  }
+
+  /** 列表里按 Enter：光标进编辑区的标题末尾 */
+  const focusTitle = (): void => {
+    const el = editorRef.current?.querySelector<HTMLInputElement>('.pn-title')
+    if (!el) return
+    el.focus()
+    const end = el.value.length
+    el.setSelectionRange(end, end)
   }
 
   const remove = async (n: Note): Promise<void> => {
@@ -182,8 +237,11 @@ export default function ProjectNotesScreen({ projectId }: { projectId: string })
           onPick={setSelId}
           onToggle={toggleDone}
           onMove={move}
+          onContextMenu={(e, n) => void onRowMenu(e, n)}
+          onDelete={() => cur && setDeleting(cur)}
+          onOpen={focusTitle}
         />
-        <main className="pn-editor">
+        <main className="pn-editor" ref={editorRef}>
           {cur ? (
             <NoteEditor
               key={cur.id}

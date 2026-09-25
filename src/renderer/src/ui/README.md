@@ -309,3 +309,46 @@ formatSize(1536, 1024)                      // "1536×1024"
 - 原型里的类名（`.btn .pri .plain .tbtn .seg .search .group .rowi .k .v .gh .lbl .tag .chip .fld .popw .stp .swt .swb
   .card .hit .frame .pill .eye .done .cap .meta .checker .ph .drop .shead .stt .sfoot .hud`）在 components.css 里都有，
   照原型搬结构时可以直接用。界面自己的类放 `screens/<界面>/*.css`，加前缀，别改 components.css 里已有的类。
+
+## 右键菜单、双击、多选、菜单命令（第二批补的基础交互）
+
+### 原生右键菜单 `app/contextMenu`
+```ts
+import { showContextMenu, menuSeparator, isSelectModifier } from '@renderer/app/contextMenu'
+onContextMenu={async (e) => {
+  const id = await showContextMenu(e, [
+    { id: 'view', label: '查看' },
+    { id: 'copy', label: '复制' },
+    { id: 'reveal', label: '在访达中显示' },
+    { id: 'cat', label: '分类', submenu: IMAGE_CATEGORIES.map((c) => ({ id: `cat:${c}`, label: c, checked: c === img.category })) },
+    menuSeparator,
+    { id: 'trash', label: '移到废纸篓', destructive: true }
+  ])
+  if (id === 'trash') …
+}}
+```
+弹的是 macOS 系统菜单（主进程 `Menu.popup`），在鼠标位置出现；没选任何项返回 `null`。`checked` 给了就显示成勾选项。
+右键一张**没选中**的卡片时先把它设为唯一选中项，菜单作用在它上面；右键**已选中**的卡片时菜单作用在整组选中项上（标题写「移到废纸篓 N 张」）。
+
+### ImageCard 新增
+- `onClick(e)` 现在带鼠标事件：按着 ⌘ / ⇧ 单击只选中不复制（`isSelectModifier(e)`），双击的第二下也不复制。
+- `onDoubleClick`：双击打开查看 / 编辑。`onContextMenu(e)`：右键。`viewLabel`：右上角按钮文字（图片用「查看」，提示词 / 风格用「编辑」）。
+- 选中（`selected`）的卡片一直显示右上角按钮，不用先悬停。
+
+### 多选 `app/selection`
+```ts
+const sel = useMultiSelect(shown.map((x) => x.id))   // 传当前显示顺序，⇧ 连选按它算
+<ImageCard selected={sel.has(id)} onClick={(e) => sel.click(id, e)} />
+sel.count / sel.ids / sel.has(id) / sel.set(id) / sel.setMany(ids) / sel.toggle(id) / sel.clear()
+useEffect(() => sel.retain(shown.map((x) => x.id)), [shown])   // 列表变了去掉已不存在的
+```
+普通单击 = 只选这一项；⌘ 点击 = 加选 / 取消；⇧ 点击 = 从上一次单击的那项连选到这项。
+
+### 键盘约定（每个列表 / 网格自己在容器上处理 `onKeyDown`，焦点在输入框里时不响应）
+- `Backspace` / `Delete`：把选中项移到废纸篓（先 ConfirmSheet 确认；多张时标题写数量）。
+- `Enter`：打开选中项（查看 / 编辑）。`⌘C`：复制选中项（图片 → 原图，提示词 → 正文）。
+- `⌘A`：全选当前显示的项（有多选的网格）。
+
+### 菜单命令 `app/commands`
+应用菜单「文件」里有 新建项目 ⌘N、新建笔记 ⇧⌘N、添加图片… ⌘I，「编辑」里有 查找 ⌘F。外壳已经接了 `new-project` 和 `find`；
+界面用 `useCommand('new-note', create)` / `useCommand('import-images', () => setAdding(true))` 接自己的（有 sheet 打开时不会触发）。

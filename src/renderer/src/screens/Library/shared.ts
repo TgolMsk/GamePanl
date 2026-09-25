@@ -1,6 +1,7 @@
 // 全局库各 tab 共用的小工具：搜索匹配、报错文字、防抖自动保存、「用于项目」查询。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useProjects } from '@renderer/app/data'
+import { hud } from '@renderer/app/hud'
 import type { ProjectSummary } from '@shared/types'
 
 /** 搜索：按空格拆成几个词，每个词都要出现在某个字段里（不区分大小写） */
@@ -15,6 +16,12 @@ export function matches(q: string, fields: ReadonlyArray<string>): boolean {
 export function errText(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
   return raw.replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '')
+}
+
+/** 接口失败时弹 HUD：「没能删除：原因」（没有原因就只显示前半句） */
+export function showError(what: string, err: unknown): void {
+  const why = errText(err)
+  hud.show(why ? `${what}：${why}` : what)
 }
 
 export interface DebouncedSave<T> {

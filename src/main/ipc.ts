@@ -1,6 +1,6 @@
 // IPC：按 src/shared/api.ts 的 GpApi 注册全部通道（通道名 `<模块>:<方法>`，与 src/preload/index.ts 一一对应）。
 // 修改数据的操作完成后向所有窗口广播 DATA_CHANGED_CHANNEL。
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell, systemPreferences } from 'electron'
 import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
 import { DATA_CHANGED_CHANNEL } from '@shared/api'
 import type { AppInfo, DataChange, ID, ImageRef } from '@shared/types'
@@ -9,8 +9,9 @@ import * as library from './library'
 import * as projects from './projects'
 import { resolveImage } from './protocol'
 import type { ResolvedImage } from './protocol'
+import { popupContextMenu } from './contextMenu'
 import { importSample } from './sample'
-import { dataRoot } from './storage'
+import { dataRoot, paths } from './storage'
 import * as updater from './updater'
 import { asBoolean, asId, asObject, asOptionalPaths, asString, fail } from './validate'
 
@@ -173,6 +174,12 @@ export function registerIpc(): void {
     await projects.removeProject(asId(id))
     emit({ kind: 'projects' })
   })
+  handle('projects:reveal', async (_e, id) => {
+    const pid = asId(id)
+    await projects.assertProject(pid)
+    const error = await shell.openPath(paths.project(pid))
+    if (error) fail(error)
+  })
 
   // ---------- 项目 · 笔记 ----------
   handle('projects:listNotes', (_e, projectId) => projects.listNotes(asId(projectId)))
@@ -244,6 +251,24 @@ export function registerIpc(): void {
   handle('shell:revealImage', async (_e, ref) => {
     shell.showItemInFolder((await findImage(ref)).path)
   })
+  handle('shell:openImage', async (_e, ref) => {
+    const error = await shell.openPath((await findImage(ref)).path)
+    if (error) fail(error)
+  })
+  handle('shell:dragImage', async (event, ref) => {
+    const img = await findImage(ref)
+    // 拖动时跟着鼠标的小图：取一张 96px 缩略图，取不到就用空图（系统会显示默认文件图标）
+    let icon = nativeImage.createEmpty()
+    try {
+      icon = await nativeImage.createThumbnailFromPath(img.path, { width: 96, height: 96 })
+    } catch {
+      // 用默认图标
+    }
+    event.sender.startDrag({ file: img.path, icon })
+  })
+
+  // ---------- 右键菜单 ----------
+  handle('menu:popup', (event, items) => popupContextMenu(event, items))
 
   // ---------- 在线更新 ----------
   handle('update:getState', () => updater.getState())

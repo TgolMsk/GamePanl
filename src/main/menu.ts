@@ -2,11 +2,28 @@
 import { app, Menu, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { existsSync } from 'fs'
+import type { AppCommand } from '@shared/types'
 import { APP_NAME, COPYRIGHT, devIconPath, ISSUES_URL, RELEASES_URL, REPO_URL } from './meta'
 import { dataRoot } from './storage'
 
 export interface MenuHooks {
   onCheckForUpdates: () => void
+  /** 把命令发给当前窗口（没有窗口时先开一个） */
+  sendCommand: (command: AppCommand) => void
+}
+
+function fileMenu(hooks: MenuHooks): MenuItemConstructorOptions {
+  return {
+    label: '文件',
+    submenu: [
+      { label: '新建项目…', accelerator: 'CmdOrCtrl+N', click: () => hooks.sendCommand('new-project') },
+      { label: '新建笔记', accelerator: 'Shift+CmdOrCtrl+N', click: () => hooks.sendCommand('new-note') },
+      { type: 'separator' },
+      { label: '添加图片…', accelerator: 'CmdOrCtrl+I', click: () => hooks.sendCommand('import-images') },
+      { type: 'separator' },
+      { role: 'close', label: '关闭窗口' }
+    ]
+  }
 }
 
 function appMenu(hooks: MenuHooks): MenuItemConstructorOptions {
@@ -29,19 +46,23 @@ function appMenu(hooks: MenuHooks): MenuItemConstructorOptions {
   }
 }
 
-const editMenu: MenuItemConstructorOptions = {
-  label: '编辑',
-  submenu: [
-    { role: 'undo', label: '撤销' },
-    { role: 'redo', label: '重做' },
-    { type: 'separator' },
-    { role: 'cut', label: '剪切' },
-    { role: 'copy', label: '拷贝' },
-    { role: 'paste', label: '粘贴' },
-    { role: 'pasteAndMatchStyle', label: '粘贴并匹配样式' },
-    { role: 'delete', label: '删除' },
-    { role: 'selectAll', label: '全选' }
-  ]
+function editMenu(hooks: MenuHooks): MenuItemConstructorOptions {
+  return {
+    label: '编辑',
+    submenu: [
+      { role: 'undo', label: '撤销' },
+      { role: 'redo', label: '重做' },
+      { type: 'separator' },
+      { role: 'cut', label: '剪切' },
+      { role: 'copy', label: '拷贝' },
+      { role: 'paste', label: '粘贴' },
+      { role: 'pasteAndMatchStyle', label: '粘贴并匹配样式' },
+      { role: 'delete', label: '删除' },
+      { role: 'selectAll', label: '全选' },
+      { type: 'separator' },
+      { label: '查找', accelerator: 'CmdOrCtrl+F', click: () => hooks.sendCommand('find') }
+    ]
+  }
 }
 
 function viewMenu(): MenuItemConstructorOptions {
@@ -99,7 +120,8 @@ export function installMenu(hooks: MenuHooks): void {
   })
   const template: MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin' ? [appMenu(hooks)] : []),
-    editMenu,
+    fileMenu(hooks),
+    editMenu(hooks),
     viewMenu(),
     windowMenu,
     helpMenu(hooks)

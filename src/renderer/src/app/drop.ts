@@ -102,12 +102,16 @@ export function installFileDrop(): void {
   const activeTarget = (): DropTarget | undefined =>
     pickTarget(useDropStore.getState().targets, openSheetCount())
 
-  // 窗口里自己的拖动（选中的文字、图片）不算文件拖入
+  // 窗口里自己发起的拖动（选中的文字、把图片卡片拖出去）不算文件拖入
   const onDragStart = (): void => {
     internal = true
   }
   const onDragEnd = (): void => {
     internal = false
+  }
+  // 图片卡片拖出去走的是系统原生拖拽，结束时不一定有 dragend；鼠标松开后再动一下就复位
+  const onMouseMove = (e: MouseEvent): void => {
+    if (internal && e.buttons === 0) internal = false
   }
   const onDragEnter = (e: DragEvent): void => {
     if (!isFileDrag(e)) return
@@ -144,6 +148,7 @@ export function installFileDrop(): void {
 
   document.addEventListener('dragstart', onDragStart)
   document.addEventListener('dragend', onDragEnd)
+  document.addEventListener('mousemove', onMouseMove)
   window.addEventListener('dragenter', onDragEnter)
   window.addEventListener('dragleave', onDragLeave)
   window.addEventListener('dragover', onDragOver)

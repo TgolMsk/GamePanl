@@ -1098,3 +1098,8 @@ img.px {
     animation: none;
   }
 }
+
+/* 选中的卡片一直显示「查看」按钮，不用先悬停才知道能打开 */
+.card.sel .eye {
+  opacity: 1;
+}

@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  type SyntheticEvent
+} from 'react'
 import { imageUrl } from '@shared/api'
 import type { ImageRef } from '@shared/types'
 import { copyImage } from '../app/clipboard'
+import { isSelectModifier } from '../app/contextMenu'
 import { cx } from './cx'
 import { Icon } from './Icon'
 
@@ -19,16 +28,22 @@ export interface ImageCardProps {
   frameHeight?: number | string
   /** 图片区撑满卡片剩余高度（卡片放在固定行高的网格里时用） */
   fill?: boolean
-  /** 选中：图片外 3px 强调色描边 */
+  /** 选中：图片外 3px 强调色描边；选中的卡片一直显示「查看」按钮 */
   selected?: boolean
   /** 缩略图最长边像素，默认 480 */
   thumb?: number
-  /** 单击时先做的事（如选中这张）；之后照常复制 */
-  onClick?: () => void
+  /** 单击时先做的事（如选中这张）；之后照常复制。按着 ⌘ / ⇧ 单击只选中，不复制 */
+  onClick?: (e: ReactMouseEvent<HTMLButtonElement>) => void
+  /** 双击：一般是打开查看 / 编辑 */
+  onDoubleClick?: () => void
+  /** 右键：一般用 showContextMenu 弹原生菜单 */
+  onContextMenu?: (e: ReactMouseEvent<HTMLDivElement>) => void
   /** 替换默认的复制（默认 copyImage(image, name)）；返回 true 才显示「已复制」角标 */
   copy?: () => Promise<boolean>
   /** 给了才显示右上角的「查看」按钮 */
   onView?: () => void
+  /** 「查看」按钮的文字，默认「查看」 */
+  viewLabel?: string
   /** 按钮的读屏名称，默认「复制「名称」」 */
   ariaLabel?: string
   className?: string
@@ -38,8 +53,8 @@ export interface ImageCardProps {
 }
 
 /**
- * 图片卡片：单击复制原图，悬停出现「点击复制」胶囊和右上角「查看」按钮，
- * 复制成功后左上角显示「✓ 已复制」2 秒。
+ * 图片卡片：单击复制原图（按着 ⌘ / ⇧ 只选中），双击打开，右键菜单，可以直接拖出到其他应用，
+ * 悬停出现「点击复制」胶囊和右上角「查看」按钮，复制成功后左上角显示「✓ 已复制」2 秒。
  */
 export function ImageCard({
   image,
@@ -52,8 +67,11 @@ export function ImageCard({
   selected,
   thumb = 480,
   onClick,
+  onDoubleClick,
+  onContextMenu,
   copy,
   onView,
+  viewLabel = '查看',
   ariaLabel,
   className,
   style,
@@ -68,8 +86,10 @@ export function ImageCard({
 
   const src = imageUrl(image, thumb)
 
-  const handleClick = async (): Promise<void> => {
-    onClick?.()
+  const handleClick = async (e: ReactMouseEvent<HTMLButtonElement>): Promise<void> => {
+    onClick?.(e)
+    // 双击的第二下、带修饰键的多选都不再复制
+    if (e.detail > 1 || isSelectModifier(e)) return
     const ok = await (copy ? copy() : copyImage(image, name))
     if (!ok) return
     clearTimeout(timer.current)
@@ -90,12 +110,24 @@ export function ImageCard({
       : { aspectRatio: String(aspect) }
 
   return (
-    <div className={cx('card', selected && 'sel', fill && 'fill', className)} style={style} data-id={dataId}>
+    <div
+      className={cx('card', selected && 'sel', fill && 'fill', className)}
+      style={style}
+      data-id={dataId}
+      onContextMenu={onContextMenu}
+    >
       <button
         type="button"
         className={cx('hit', fill && 'fill')}
         aria-label={ariaLabel ?? `复制「${name}」`}
         onClick={handleClick}
+        onDoubleClick={onDoubleClick}
+        draggable
+        onDragStart={(e) => {
+          // 交给系统原生拖拽：可以直接拖进访达、ChatGPT、Photoshop
+          e.preventDefault()
+          void window.gp.shell.dragImage(image).catch(() => undefined)
+        }}
       >
         <span className="frame" style={frameStyle}>
           {brokenSrc === src ? (
@@ -133,7 +165,7 @@ export function ImageCard({
         )}
       </button>
       {onView && (
-        <button type="button" className="eye" aria-label="查看" title="查看" onClick={onView}>
+        <button type="button" className="eye" aria-label={viewLabel} title={viewLabel} onClick={onView}>
           <Icon name="eye" size={15} />
         </button>
       )}

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { GpApi } from '@shared/api'
-import { DATA_CHANGED_CHANNEL, UPDATE_STATE_CHANNEL } from '@shared/api'
-import type { DataChange, UpdateState } from '@shared/types'
+import { APP_COMMAND_CHANNEL, DATA_CHANGED_CHANNEL, UPDATE_STATE_CHANNEL } from '@shared/api'
+import type { AppCommand, DataChange, UpdateState } from '@shared/types'
 
 const call =
   (channel: string) =>
@@ -36,6 +36,7 @@ const api: GpApi = {
     create: call('projects:create') as GpApi['projects']['create'],
     update: call('projects:update') as GpApi['projects']['update'],
     remove: call('projects:remove') as GpApi['projects']['remove'],
+    reveal: call('projects:reveal') as GpApi['projects']['reveal'],
     listNotes: call('projects:listNotes') as GpApi['projects']['listNotes'],
     createNote: call('projects:createNote') as GpApi['projects']['createNote'],
     saveNote: call('projects:saveNote') as GpApi['projects']['saveNote'],
@@ -52,7 +53,9 @@ const api: GpApi = {
     copyText: call('clipboard:copyText') as GpApi['clipboard']['copyText']
   },
   shell: {
-    revealImage: call('shell:revealImage') as GpApi['shell']['revealImage']
+    revealImage: call('shell:revealImage') as GpApi['shell']['revealImage'],
+    openImage: call('shell:openImage') as GpApi['shell']['openImage'],
+    dragImage: call('shell:dragImage') as GpApi['shell']['dragImage']
   },
   update: {
     getState: call('update:getState') as GpApi['update']['getState'],
@@ -65,7 +68,15 @@ const api: GpApi = {
     skipVersion: call('update:skipVersion') as GpApi['update']['skipVersion'],
     setAutoCheck: call('update:setAutoCheck') as GpApi['update']['setAutoCheck']
   },
+  menu: {
+    popup: call('menu:popup') as GpApi['menu']['popup']
+  },
   pathForFile: (file: File) => webUtils.getPathForFile(file),
+  onCommand: (listener) => {
+    const handler = (_e: Electron.IpcRendererEvent, command: AppCommand): void => listener(command)
+    ipcRenderer.on(APP_COMMAND_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(APP_COMMAND_CHANNEL, handler)
+  },
   onDataChanged: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, change: DataChange): void => listener(change)
     ipcRenderer.on(DATA_CHANGED_CHANNEL, handler)

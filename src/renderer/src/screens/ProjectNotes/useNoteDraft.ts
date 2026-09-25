@@ -22,6 +22,8 @@ export interface NoteDraft {
   flush: () => void
   /** 排进写队列（保存、删除等按顺序执行） */
   enqueue: <T>(task: () => Promise<T>) => Promise<T>
+  /** 编辑区里此刻的笔记（给异步回调用，比如右键菜单选完之后；渲染时用 draft） */
+  peek: () => Note | null
   /**
    * 编辑区要显示的笔记（缓存里的版本）变了时调用。
    * 换了一条就先保存上一条再载入；同一条在别处被改了且本地没有未保存的改动时，换成新的。
@@ -48,6 +50,8 @@ export function useNoteDraft(projectId: string, notes: Resource<Note[]>): NoteDr
     chain.current = p.catch(() => undefined)
     return p
   }, [])
+
+  const peek = useCallback(() => draftRef.current, [])
 
   const flush = useCallback(() => {
     clearTimeout(timer.current)
@@ -109,5 +113,5 @@ export function useNoteDraft(projectId: string, notes: Resource<Note[]>): NoteDr
     }
   }, [flush])
 
-  return { draft, edit, flush, enqueue, show }
+  return { draft, edit, flush, enqueue, peek, show }
 }

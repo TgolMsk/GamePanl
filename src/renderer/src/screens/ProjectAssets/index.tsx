@@ -1,11 +1,15 @@
 import './assets.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import type { AssetPatch } from '@shared/api'
-import type { AssetCategory, ID, ProjectAsset } from '@shared/types'
+import { ASSET_CATEGORIES, type AssetCategory, type ID, type ImageRef, type ProjectAsset } from '@shared/types'
+import { copyImage } from '@renderer/app/clipboard'
+import { useCommand } from '@renderer/app/commands'
+import { menuSeparator, showContextMenu } from '@renderer/app/contextMenu'
 import { useAssets, useNotes, useProject } from '@renderer/app/data'
 import { useFileDrop, usePasteImage } from '@renderer/app/drop'
 import { formatSize } from '@renderer/app/format'
 import { hud } from '@renderer/app/hud'
+import { useMultiSelect } from '@renderer/app/selection'
 import { openSheetCount } from '@renderer/app/sheetStack'
 import {
   Button,
@@ -22,7 +26,7 @@ import { AddImagesSheet } from './AddImagesSheet'
 import { groupByDate } from './grouping'
 import { Inspector } from './Inspector'
 import { LibraryPickerSheet } from './LibraryPickerSheet'
-import { loadZoom, saveZoom, showError, ZOOM_MAX, ZOOM_MIN } from './util'
+import { loadZoom, openImage, revealImage, saveZoom, showError, ZOOM_MAX, ZOOM_MIN } from './util'
 
 const FILTERS = [
   { value: 'all', label: '全部' },
@@ -60,6 +64,11 @@ function isEditable(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && el.closest('input, textarea, select, [contenteditable="true"]') !== null
 }
 
+/** 焦点所在的卡片 id（焦点在卡片的按钮上时） */
+function cardIdOf(el: EventTarget | null): ID | null {
+  return el instanceof Element ? (el.closest<HTMLElement>('[data-id]')?.dataset.id ?? null) : null
+}
+
 /** 项目资料：本项目的图片，像「照片」一样按添加时间分组显示 */
 export default function ProjectAssetsScreen({ projectId }: { projectId: string }): React.JSX.Element {
   const project = useProject(projectId)
@@ -69,11 +78,11 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
 
   const [filter, setFilter] = useState<Filter>('all')
   const [zoom, setZoom] = useState(loadZoom)
-  const [selId, setSelId] = useState<ID | null>(null)
   const [viewId, setViewId] = useState<ID | null>(null)
   const [adding, setAdding] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [trashing, setTrashing] = useState<ProjectAsset | null>(null)
+  /** 等待确认移到废纸篓的图片（一张或一组） */
+  const [trashing, setTrashing] = useState<ProjectAsset[] | null>(null)
 
   const cols = 9 - zoom
   const visible = useMemo(
@@ -92,7 +101,25 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
     [groups, cols]
   )
   const order = useMemo(() => rows.flat(), [rows])
-  const selected = visible.find((a) => a.id === selId) ?? groups[0]?.items[0] ?? null
+  const byId = useMemo(() => new Map(visible.map((a) => [a.id, a] as const)), [visible])
+
+  // ---------- 选中：单击选一张，⌘ 加选，⇧ 连选 ----------
+  const sel = useMultiSelect(order)
+  const { retain } = sel
+  useEffect(() => retain(order), [order, retain])
+  /** 选中的图片，按屏幕顺序 */
+  const selectedAssets = useMemo(
+    () => order.filter((id) => sel.has(id)).flatMap((id) => byId.get(id) ?? []),
+    [order, sel, byId]
+  )
+  const explicit = selectedAssets.length > 0
+  /** 检查器显示的那一张：单选时是它；什么都没选时默认第一张；多选时 null */
+  const single: ProjectAsset | null =
+    selectedAssets.length === 1 ? selectedAssets[0] : explicit ? null : (byId.get(order[0] ?? '') ?? null)
+  /** 键盘、检查器按钮作用的对象 */
+  const targets: ProjectAsset[] = explicit ? selectedAssets : single ? [single] : []
+  const isSelected = (id: ID): boolean => (explicit ? sel.has(id) : id === single?.id)
+  const refOf = (id: ID): ImageRef => ({ scope: 'project', projectId, id })
 
   // ---------- 键盘焦点：选中后把焦点和滚动带到那张卡片 ----------
   const mainRef = useRef<HTMLElement>(null)
@@ -117,10 +144,11 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
     applyFocus()
   }
 
+  /** 方向键：从当前那张（多选时是最后点的那张）移动，移动后变成单选 */
   const move = (key: string): void => {
     if (order.length === 0) return
     let next = order[0]
-    const cur = selected?.id
+    const cur = sel.anchor && byId.has(sel.anchor) ? sel.anchor : targets[0]?.id
     if (cur) {
       if (key === 'ArrowLeft' || key === 'ArrowRight') {
         const i = order.indexOf(cur) + (key === 'ArrowRight' ? 1 : -1)
@@ -132,24 +160,61 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
         next = target ? target[Math.min(c, target.length - 1)] : cur
       }
     }
-    setSelId(next)
+    sel.set(next)
     focusCard(next)
   }
-  const moveRef = useRef(move)
-  useEffect(() => {
-    moveRef.current = move
-  })
-  // 焦点在网格里或没有焦点时，方向键移动选中
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (!ARROWS.includes(e.key) || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
-      const main = mainRef.current
-      const t = e.target
-      if (!main || openSheetCount() > 0 || isEditable(t)) return
-      if (t !== document.body && !(t instanceof Node && main.contains(t))) return
+
+  /** 打开 Quick Look；这张还没选中的话先选中它 */
+  const openView = (id: ID): void => {
+    if (!sel.has(id)) sel.set(id)
+    setViewId(id)
+  }
+
+  // 焦点在网格里或没有焦点时（不在输入框里、没有 sheet 打开）：
+  // 方向键移动，Delete 移到废纸篓，Enter 打开，⌘C 复制，⌘A 全选，Esc 取消多选
+  const handleKey = (e: KeyboardEvent): void => {
+    if (e.defaultPrevented || e.isComposing) return
+    const main = mainRef.current
+    const t = e.target
+    if (!main || openSheetCount() > 0 || isEditable(t)) return
+    if (t !== document.body && !(t instanceof Node && main.contains(t))) return
+    const plain = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey
+    const cmd = e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey
+    const key = e.key
+    if (plain && ARROWS.includes(key)) {
       e.preventDefault()
-      moveRef.current(e.key)
+      move(key)
+    } else if (plain && (key === 'Backspace' || key === 'Delete')) {
+      if (targets.length === 0) return
+      e.preventDefault()
+      setTrashing(targets)
+    } else if (plain && key === 'Enter') {
+      // 焦点在某张卡片上就打开它，否则打开选中的那张（也拦掉按钮默认的「回车 = 点击复制」）
+      const id = cardIdOf(t) ?? targets[0]?.id
+      if (!id) return
+      e.preventDefault()
+      openView(id)
+    } else if (plain && key === 'Escape') {
+      if (selectedAssets.length < 2) return
+      e.preventDefault()
+      sel.clear()
+    } else if (cmd && key.toLowerCase() === 'a') {
+      if (order.length === 0) return
+      e.preventDefault()
+      sel.setMany(order)
+    } else if (cmd && key.toLowerCase() === 'c') {
+      // 页面上有选中的文字时让系统照常复制文字
+      if (targets.length !== 1 || document.getSelection()?.isCollapsed === false) return
+      e.preventDefault()
+      void copyImage(refOf(targets[0].id), targets[0].name)
     }
+  }
+  const keyRef = useRef(handleKey)
+  useEffect(() => {
+    keyRef.current = handleKey
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => keyRef.current(e)
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
@@ -159,7 +224,7 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
     saveZoom(z)
   }
 
-  // ---------- 导入：拖入、粘贴、选择文件、从全局库添加 ----------
+  // ---------- 导入：拖入、粘贴、选择文件、从全局库添加、菜单 ⌘I ----------
   const assetsRef = useRef(assets.data)
   useEffect(() => {
     assetsRef.current = assets.data
@@ -193,7 +258,7 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
     }
     const first = fresh[0] ?? items[0]
     if (filter !== 'all' && first.category !== filter) setFilter('all')
-    setSelId(first.id)
+    sel.set(first.id)
     focusCard(first.id)
     return 'added'
   }
@@ -218,8 +283,9 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
 
   useFileDrop((paths) => void importFiles(paths), { label: name ? `松手添加到「${name}」` : '松手添加' })
   usePasteImage((p) => void (p.kind === 'files' ? importFiles(p.paths) : importClipboard()))
+  useCommand('import-images', () => setAdding(true))
 
-  // ---------- 修改、删除 ----------
+  // ---------- 修改、删除、封面 ----------
   const patchAsset = async (id: ID, patch: AssetPatch): Promise<void> => {
     assets.mutate((list) => list.map((a) => (a.id === id ? { ...a, ...patch } : a)))
     if (patch.category && filter !== 'all' && patch.category !== filter) hud.show(`已移到「${patch.category}」`)
@@ -232,24 +298,131 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
     }
   }
 
-  const confirmTrash = async (): Promise<void> => {
-    const a = trashing
-    if (!a) return
-    const i = order.indexOf(a.id)
-    const next = i >= 0 ? (order[i + 1] ?? order[i - 1] ?? null) : null
-    try {
-      await window.gp.projects.deleteAsset(projectId, a.id)
-    } catch (err) {
-      setTrashing(null)
-      showError('没能移到废纸篓', err)
-      return
+  /** 把一张或一组改成某个分类；多张时依次保存，完成后 HUD 报数 */
+  const setCategory = async (group: ProjectAsset[], category: AssetCategory): Promise<void> => {
+    const todo = group.filter((a) => a.category !== category)
+    if (todo.length === 0) return
+    if (group.length === 1) return patchAsset(todo[0].id, { category })
+    const ids = new Set(todo.map((a) => a.id))
+    assets.mutate((list) => list.map((a) => (ids.has(a.id) ? { ...a, category } : a)))
+    let ok = 0
+    let lastErr: unknown = null
+    for (const a of todo) {
+      try {
+        const saved = await window.gp.projects.updateAsset(projectId, a.id, { category })
+        assets.mutate((list) => list.map((x) => (x.id === a.id ? saved : x)))
+        ok++
+      } catch (err) {
+        lastErr = err
+      }
     }
-    assets.mutate((list) => list.filter((x) => x.id !== a.id))
+    // 报数按选中的张数算（本来就在这个分类里的也算「已在」）
+    const failed = todo.length - ok
+    if (failed === 0) {
+      hud.show(`已把 ${group.length} 张移到「${category}」`, { ok: true })
+    } else {
+      showError(ok === 0 ? '没能保存' : `已把 ${group.length - failed} 张移到「${category}」，${failed} 张没能保存`, lastErr)
+      void assets.refresh()
+    }
+  }
+
+  const isCover = (id: ID): boolean => project.data?.coverAssetId === id
+  /** 设为 / 取消项目封面 */
+  const toggleCover = async (a: ProjectAsset): Promise<void> => {
+    const off = isCover(a.id)
+    try {
+      const p = await window.gp.projects.update(projectId, { coverAssetId: off ? null : a.id })
+      project.mutate(p)
+      hud.show(off ? `已取消「${name}」的封面` : `已设为「${name}」的封面`, { ok: true })
+    } catch (err) {
+      showError('没能设置封面', err)
+    }
+  }
+
+  const confirmTrash = async (): Promise<void> => {
+    const group = trashing
+    if (!group || group.length === 0) return
+    const ids = new Set(group.map((a) => a.id))
+    // 删完选中下一张：最后一张被删的后面第一张还在的，没有就往前找
+    const positions = order.flatMap((id, i) => (ids.has(id) ? [i] : []))
+    let next: ID | null = null
+    if (positions.length > 0) {
+      for (let i = positions[positions.length - 1] + 1; i < order.length && !next; i++) {
+        if (!ids.has(order[i])) next = order[i]
+      }
+      for (let i = positions[0] - 1; i >= 0 && !next; i--) {
+        if (!ids.has(order[i])) next = order[i]
+      }
+    }
+    const done = new Set<ID>()
+    let lastErr: unknown = null
+    for (const a of group) {
+      try {
+        await window.gp.projects.deleteAsset(projectId, a.id)
+        done.add(a.id)
+      } catch (err) {
+        lastErr = err
+      }
+    }
+    if (done.size > 0) assets.mutate((list) => list.filter((x) => !done.has(x.id)))
     setTrashing(null)
-    if (viewId === a.id) setViewId(null)
-    setSelId(next)
-    if (next) focusCard(next)
-    hud.show('已移到废纸篓', { ok: true })
+    if (viewId && done.has(viewId)) setViewId(null)
+    const failed = group.filter((a) => !done.has(a.id))
+    if (failed.length > 0) {
+      sel.setMany(failed.map((a) => a.id))
+    } else {
+      sel.set(next)
+      if (next) focusCard(next)
+    }
+    const n = group.length
+    if (done.size === n) hud.show(n === 1 ? '已移到废纸篓' : `已把 ${n} 张移到废纸篓`, { ok: true })
+    else if (done.size === 0) showError('没能移到废纸篓', lastErr)
+    else hud.show(`已把 ${done.size} 张移到废纸篓，${failed.length} 张没能移动`)
+  }
+
+  // ---------- 右键菜单 ----------
+  const showCardMenu = async (e: ReactMouseEvent, group: ProjectAsset[]): Promise<void> => {
+    const many = group.length > 1
+    const first = group[0]
+    const common = group.every((a) => a.category === first.category) ? first.category : null
+    const picked = await showContextMenu(e, [
+      { id: 'view', label: '查看…', enabled: !many },
+      { id: 'copy', label: '复制', enabled: !many },
+      { id: 'open', label: '用默认应用打开', enabled: !many },
+      { id: 'reveal', label: '在访达中显示', enabled: !many },
+      {
+        id: 'cat',
+        label: '分类',
+        submenu: ASSET_CATEGORIES.map((c) => ({ id: `cat:${c}`, label: c, checked: c === common }))
+      },
+      { id: 'cover', label: '设为项目封面', enabled: !many, checked: !many && isCover(first.id) },
+      menuSeparator,
+      { id: 'trash', label: many ? `移到废纸篓 ${group.length} 张` : '移到废纸篓', destructive: true }
+    ])
+    if (!picked) return
+    const ref = refOf(first.id)
+    if (picked === 'view') openView(first.id)
+    else if (picked === 'copy') void copyImage(ref, first.name)
+    else if (picked === 'open') void openImage(ref)
+    else if (picked === 'reveal') void revealImage(ref)
+    else if (picked === 'cover') void toggleCover(first)
+    else if (picked === 'trash') setTrashing(group)
+    else {
+      const category = ASSET_CATEGORIES.find((c) => `cat:${c}` === picked)
+      if (category) void setCategory(group, category)
+    }
+  }
+
+  /** 右键没选中的图：先把它设为唯一选中项；右键已选中的图：作用在整组上 */
+  const onCardMenu = (e: ReactMouseEvent, a: ProjectAsset): void => {
+    let group: ProjectAsset[]
+    if (sel.has(a.id) && selectedAssets.length > 1) {
+      group = selectedAssets
+    } else {
+      sel.set(a.id)
+      group = [a]
+    }
+    void showCardMenu(e, group)
   }
 
   const viewing = assets.data.find((a) => a.id === viewId) ?? null
@@ -283,17 +456,17 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
           {g.items.map((a) => (
             <ImageCard
               key={a.id}
-              image={{ scope: 'project', projectId, id: a.id }}
+              image={refOf(a.id)}
               name={a.name}
               meta={formatSize(a.width, a.height)}
               aspect={4 / 3}
               thumb={THUMB}
-              selected={a.id === selected?.id}
-              onClick={() => setSelId(a.id)}
-              onView={() => {
-                setSelId(a.id)
-                setViewId(a.id)
-              }}
+              selected={isSelected(a.id)}
+              viewLabel="查看"
+              onClick={(e) => sel.click(a.id, e)}
+              onDoubleClick={() => openView(a.id)}
+              onContextMenu={(e) => onCardMenu(e, a)}
+              onView={() => openView(a.id)}
               dataId={a.id}
             />
           ))}
@@ -302,9 +475,14 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
     ))
   }
 
+  const subtitle = assets.loading
+    ? '资料'
+    : `资料 · ${assets.data.length} 张${selectedAssets.length > 1 ? ` · 已选 ${selectedAssets.length} 张` : ''}`
+  const trashMany = trashing !== null && trashing.length > 1
+
   return (
     <div className="screen">
-      <Toolbar title={name} subtitle={assets.loading ? '资料' : `资料 · ${assets.data.length} 张`}>
+      <Toolbar title={name} subtitle={subtitle}>
         <Segmented ariaLabel="按分类显示" value={filter} onChange={setFilter} options={FILTERS} />
         <div className="as-zoom">
           <Icon name="photo" size={12} strokeWidth={1.9} />
@@ -330,16 +508,20 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
         </main>
         <Inspector
           projectId={projectId}
-          asset={selected}
+          asset={single}
+          selection={selectedAssets}
+          isCover={single !== null && isCover(single.id)}
           notes={notes.data}
           onPatch={(id, patch) => void patchAsset(id, patch)}
-          onView={() => selected && setViewId(selected.id)}
-          onTrash={() => selected && setTrashing(selected)}
+          onView={() => single && openView(single.id)}
+          onTrash={() => targets.length > 0 && setTrashing(targets)}
+          onBatchCategory={(category) => void setCategory(selectedAssets, category)}
+          onClearSelection={sel.clear}
         />
       </div>
 
       <QuickLook
-        image={viewing && { ...viewing, ref: { scope: 'project', projectId, id: viewing.id } }}
+        image={viewing && { ...viewing, ref: refOf(viewing.id) }}
         onClose={() => setViewId(null)}
         onTagsChange={(tags) => viewing && void patchAsset(viewing.id, { tags })}
       />
@@ -361,7 +543,9 @@ export default function ProjectAssetsScreen({ projectId }: { projectId: string }
 
       <ConfirmSheet
         open={trashing !== null}
-        title={`把「${trashing?.name ?? ''}」移到废纸篓？`}
+        title={
+          trashMany ? `把 ${trashing.length} 张图片移到废纸篓？` : `把「${trashing?.[0]?.name ?? ''}」移到废纸篓？`
+        }
         message="可以在访达的废纸篓里找回。"
         confirmLabel="移到废纸篓"
         destructive

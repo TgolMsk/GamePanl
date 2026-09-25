@@ -1,4 +1,5 @@
 // 资料界面用的小工具
+import type { ImageRef } from '@shared/types'
 import { hud } from '@renderer/app/hud'
 
 /** 接口报错 → 给人看的原因（去掉 IPC 加的前缀） */
@@ -11,6 +12,24 @@ export function reason(err: unknown): string {
 export function showError(what: string, err: unknown): void {
   const why = reason(err)
   hud.show(why ? `${what}：${why}` : what)
+}
+
+/** 在访达中显示原文件；找不到时 HUD 提示 */
+export async function revealImage(ref: ImageRef): Promise<void> {
+  try {
+    await window.gp.shell.revealImage(ref)
+  } catch {
+    hud.show('找不到原文件')
+  }
+}
+
+/** 用系统默认应用打开原图；失败时 HUD 提示 */
+export async function openImage(ref: ImageRef): Promise<void> {
+  try {
+    await window.gp.shell.openImage(ref)
+  } catch (err) {
+    showError('没能打开', err)
+  }
 }
 
 // 缩略图大小（3–6，越大图越大，列数 = 9 - 大小），记在本机，下次打开还是这个大小

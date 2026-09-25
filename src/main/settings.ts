@@ -3,15 +3,29 @@ import { app } from 'electron'
 import { join } from 'path'
 import { readJson, updateJson } from './storage'
 
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface AppSettings {
   /** 启动时和运行期间定时到 GitHub 检查新版本 */
   autoCheckUpdates: boolean
   /** 用户选了「跳过这个版本」的版本号 */
   skippedVersion: string | null
   lastUpdateCheckAt: string | null
+  /** 上次关闭时的窗口位置和大小 */
+  windowBounds: WindowBounds | null
 }
 
-const DEFAULTS: AppSettings = { autoCheckUpdates: true, skippedVersion: null, lastUpdateCheckAt: null }
+const DEFAULTS: AppSettings = {
+  autoCheckUpdates: true,
+  skippedVersion: null,
+  lastUpdateCheckAt: null,
+  windowBounds: null
+}
 
 const file = (): string => join(app.getPath('userData'), 'settings.json')
 

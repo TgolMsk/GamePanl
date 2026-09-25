@@ -1,14 +1,17 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { copyImage, useCopiedFlag } from '@renderer/app/clipboard'
+import { menuSeparator, showContextMenu } from '@renderer/app/contextMenu'
+import { isImageFile } from '@renderer/app/drop'
 import { formatSize } from '@renderer/app/format'
 import { hud } from '@renderer/app/hud'
 import { Button, cx, Icon, IconButton, ImageCard, Select } from '@renderer/ui'
 import { NOTE_CATEGORIES } from '@shared/types'
-import type { ImageRef, Note, NoteBlock, NoteCategory } from '@shared/types'
+import type { ImageRef, Note, NoteBlock, NoteCategory, ProjectAsset } from '@shared/types'
 import { ImagePicker } from './ImagePicker'
 import type { ImageSource } from './images'
 import { fullDate, imagesIn, newBlockId, refKey } from './noteUtil'
 import { Thumb } from './Thumb'
+import { errorText } from './useNoteDraft'
 
 type TodoBlock = Extract<NoteBlock, { type: 'todo' }>
 type ParaBlock = Extract<NoteBlock, { type: 'p' }>
@@ -26,6 +29,42 @@ interface FocusRequest {
 /** 输入法正在组词：这时的回车、退格交给输入法 */
 function composing(e: KeyboardEvent): boolean {
   return e.nativeEvent.isComposing || e.keyCode === 229
+}
+
+function pathOf(file: File): string {
+  try {
+    return window.gp.pathForFile(file)
+  } catch {
+    return ''
+  }
+}
+
+interface PastedImport {
+  /** 从访达复制的图片文件（count 张），或剪贴板里的图片数据 */
+  source: 'files' | 'clipboard'
+  count: number
+  /** 存进本项目资料；已经在资料里的文件不会再返回 */
+  task: Promise<ProjectAsset[]>
+}
+
+/**
+ * ⌘V 粘贴的内容里有图片就存进本项目资料：从访达复制的图片文件按路径导入，剪贴板里的图片数据走 importAssetFromClipboard。
+ * 纯文字（或没有路径、不是图片的文件）返回 null，照常粘贴。
+ */
+function importPasted(projectId: string, data: DataTransfer): PastedImport | null {
+  const fromDisk = Array.from(data.files)
+    .map((file) => ({ file, path: pathOf(file) }))
+    .filter((x) => x.path !== '')
+  if (fromDisk.length > 0) {
+    const paths = fromDisk.filter((x) => isImageFile(x.file)).map((x) => x.path)
+    if (paths.length === 0) return null
+    return { source: 'files', count: paths.length, task: window.gp.projects.importAssets(projectId, paths) }
+  }
+  if (Array.from(data.items).some((it) => it.kind === 'file' && it.type.startsWith('image/'))) {
+    const task = window.gp.projects.importAssetFromClipboard(projectId).then((a) => (a ? [a] : []))
+    return { source: 'clipboard', count: 1, task }
+  }
+  return null
 }
 
 export interface NoteEditorProps {
@@ -194,6 +233,57 @@ export function NoteEditor({
     hud.show('已从笔记中移除', { ok: true })
   }
 
+  const onImageMenu = async (e: MouseEvent, b: ImageBlock, name: string | null): Promise<void> => {
+    const id = await showContextMenu(e, [
+      { id: 'copy', label: '复制' },
+      { id: 'view', label: '查看', enabled: name !== null },
+      menuSeparator,
+      { id: 'remove', label: '从笔记移除' }
+    ])
+    if (id === 'copy') void copyImage(b.image, name ?? '图片')
+    else if (id === 'view') onView(b.image)
+    else if (id === 'remove') removeImage(b.id)
+  }
+
+  // ---------- 粘贴图片 ----------
+
+  /**
+   * 在标题 / 正文里 ⌘V：剪贴板里有图片就存进资料，再作为图片块插到当前块后面（标题里粘贴插到末尾）。
+   * preventDefault 得在事件里同步调用（否则访达复制的文件会先把文件名粘成文字），所以先拦下再等导入。
+   */
+  const onPaste = (e: ClipboardEvent<Field>, afterId: string | null): void => {
+    const pasted = e.clipboardData ? importPasted(projectId, e.clipboardData) : null
+    if (!pasted) return
+    e.preventDefault()
+    const noteId = note.id
+    pasted.task.then(
+      (added) => {
+        if (added.length === 0) {
+          if (pasted.source === 'clipboard') hud.show('剪贴板里没有图片')
+          else hud.show(pasted.count === 1 ? '这张图片已经在资料里了' : '这些图片已经在资料里了')
+          return
+        }
+        let inserted = false
+        // 导入期间可能换了笔记：只插进当初粘贴的那条
+        edit((n) => {
+          if (n.id !== noteId) return n
+          inserted = true
+          const blocks: NoteBlock[] = added.map((a) => ({
+            id: newBlockId(),
+            type: 'image',
+            image: { scope: 'project', projectId, id: a.id }
+          }))
+          const i = afterId === null ? -1 : n.blocks.findIndex((b) => b.id === afterId)
+          const at = i < 0 ? n.blocks.length : i + 1
+          return { ...n, blocks: [...n.blocks.slice(0, at), ...blocks, ...n.blocks.slice(at)] }
+        })
+        const what = added.length > 1 ? `${added.length} 张图片` : '图片'
+        hud.show(inserted ? `已把${what}加进笔记和资料` : `已把${what}加进资料`, { ok: true })
+      },
+      (err: unknown) => hud.show(`添加图片失败：${errorText(err)}`)
+    )
+  }
+
   // 点正文下面的空白处：光标放到最后一段末尾（最后是图片时先接一个空段落）
   const onTailDown = (e: MouseEvent<HTMLDivElement>): void => {
     e.preventDefault()
@@ -236,6 +326,7 @@ export function NoteEditor({
           aspect={aspect}
           thumb={1040}
           onView={info ? () => onView(b.image) : undefined}
+          onContextMenu={(e) => void onImageMenu(e, b, info?.name ?? null)}
         />
         <button type="button" className="eye pn-rm" aria-label="从笔记移除" title="从笔记移除" onClick={() => removeImage(b.id)}>
           <Icon name="xmark" size={13} strokeWidth={2.2} />
@@ -260,6 +351,7 @@ export function NoteEditor({
             maxLength={100_000}
             onChange={(e) => setText(b.id, e.target.value)}
             onKeyDown={(e) => onParaKey(e, b)}
+            onPaste={(e) => onPaste(e, b.id)}
           />
         )
       case 'todo':
@@ -284,6 +376,7 @@ export function NoteEditor({
               maxLength={5000}
               onChange={(e) => setText(b.id, e.target.value.replace(/\r\n?|\n/g, ' '))}
               onKeyDown={(e) => onTodoKey(e, b)}
+              onPaste={(e) => onPaste(e, b.id)}
             />
           </div>
         )
@@ -324,6 +417,7 @@ export function NoteEditor({
             maxLength={500}
             onChange={(e) => edit((n) => ({ ...n, title: e.target.value }))}
             onKeyDown={onTitleKey}
+            onPaste={(e) => onPaste(e, null)}
           />
           {note.blocks.map(renderBlock)}
           <div className="pn-tail" onMouseDown={onTailDown} />

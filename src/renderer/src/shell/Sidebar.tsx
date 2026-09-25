@@ -1,9 +1,11 @@
-import { Fragment } from 'react'
+import { Fragment, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import type { ProjectSummary } from '@shared/types'
 import { useLibImages, useProjects, usePrompts, useStyles } from '../app/data'
 import { go, useNav, type LibraryTab, type ProjectTab } from '../app/nav'
 import { cx } from '../ui/cx'
 import { Icon, type IconName } from '../ui/Icon'
 import { openNewProject } from './NewProjectSheet'
+import { DeleteProjectSheet, projectName, showProjectMenu } from './ProjectContextMenu'
 import { UpdateBanner } from './UpdateBanner'
 
 interface NavItemProps {
@@ -13,15 +15,17 @@ interface NavItemProps {
   on?: boolean
   sub?: boolean
   onClick: () => void
+  onContextMenu?: (e: ReactMouseEvent<HTMLButtonElement>) => void
 }
 
-function NavItem({ icon, label, count, on, sub, onClick }: NavItemProps): React.JSX.Element {
+function NavItem({ icon, label, count, on, sub, onClick, onContextMenu }: NavItemProps): React.JSX.Element {
   return (
     <button
       type="button"
       className={cx('nv', sub && 'sub', on && 'on')}
       aria-current={on ? 'page' : undefined}
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       <span className="ic">
         <Icon name={icon} />
@@ -51,6 +55,8 @@ export function Sidebar(): React.JSX.Element {
   const prompts = usePrompts()
   const styles = useStyles()
   const projects = useProjects()
+  // 右键「删除项目…」正在确认的那个
+  const [deleting, setDeleting] = useState<ProjectSummary | null>(null)
 
   const counts: Record<LibraryTab, number | undefined> = {
     images: countOf(images),
@@ -82,7 +88,12 @@ export function Sidebar(): React.JSX.Element {
         <div className="sec">项目</div>
         {projects.data.map((p) => (
           <Fragment key={p.id}>
-            <NavItem icon="controller" label={p.name || '未命名项目'} onClick={() => goProject(p.id, 'config')} />
+            <NavItem
+              icon="controller"
+              label={projectName(p)}
+              onClick={() => goProject(p.id, 'config')}
+              onContextMenu={(e) => void showProjectMenu(e, p, setDeleting)}
+            />
             {p.id === openId && (
               <>
                 <NavItem
@@ -123,6 +134,7 @@ export function Sidebar(): React.JSX.Element {
         </span>
         新建项目
       </button>
+      <DeleteProjectSheet project={deleting} onClose={() => setDeleting(null)} />
     </nav>
   )
 }

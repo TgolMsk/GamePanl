@@ -71,10 +71,39 @@
 .as-ttl:focus {
   background: var(--card);
 }
+/* 名称 + 「当前封面」小字 */
+.as-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.as-cover {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--tx2);
+}
+.as-cover svg {
+  color: var(--acc);
+}
 .as-nosel {
   margin: auto;
   text-align: center;
   color: var(--tx2);
+}
+/* 多选时的批量面板 */
+.as-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 0;
+}
+.as-multi-n {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tx);
 }
 .as-pad {
   padding: 0 4px;

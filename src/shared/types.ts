@@ -188,6 +188,24 @@ export interface AppInfo {
   libraryEmpty: boolean
 }
 
+// ---------- 右键菜单 / 菜单命令 ----------
+
+/** 原生右键菜单的一项；点了哪项由 id 返回 */
+export type MenuItemSpec =
+  | { type: 'separator' }
+  | {
+      id: string
+      label: string
+      enabled?: boolean
+      checked?: boolean
+      /** 危险操作（删除类），显示为红色 */
+      destructive?: boolean
+      submenu?: MenuItemSpec[]
+    }
+
+/** 应用菜单发给当前窗口的命令（文件菜单、快捷键） */
+export type AppCommand = 'new-project' | 'new-note' | 'import-images' | 'find'
+
 // ---------- 在线更新 ----------
 
 export interface UpdateAsset {
