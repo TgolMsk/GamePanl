@@ -1,11 +1,12 @@
 import { app, BrowserWindow, protocol, shell } from 'electron'
+import { existsSync } from 'fs'
 import { join } from 'path'
 import { initStorage } from './storage'
 import { registerIpc } from './ipc'
 import { registerImageProtocol } from './protocol'
 import { setupDevShot } from './devshot'
 import { installMenu } from './menu'
-import { APP_NAME } from './meta'
+import { APP_NAME, devIconPath } from './meta'
 import { checkForUpdates, initUpdater, startAutoCheck } from './updater'
 
 app.setName(APP_NAME)
@@ -59,8 +60,8 @@ setupDevShot()
 
 app.whenReady().then(async () => {
   // 打包后的 .app 自带图标；开发模式下 Dock 里显示的是 Electron 默认图标，这里换成我们自己的
-  if (process.platform === 'darwin' && !app.isPackaged) {
-    app.dock?.setIcon(join(app.getAppPath(), 'build', 'icon.png'))
+  if (process.platform === 'darwin' && !app.isPackaged && devIconPath && existsSync(devIconPath)) {
+    app.dock?.setIcon(devIconPath)
   }
   installMenu({
     onCheckForUpdates: () => {

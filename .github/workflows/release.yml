@@ -54,7 +54,7 @@ jobs:
             *-*) PRERELEASE="--prerelease" ;;
           esac
           gh release create "$GITHUB_REF_NAME" \
-            release/*.dmg release/*.zip release/*.yml release/*.blockmap \
+            release/*.dmg release/*.zip release/latest*.yml release/*.blockmap \
             --title "GamePanl $VERSION" \
             --generate-notes \
             $PRERELEASE

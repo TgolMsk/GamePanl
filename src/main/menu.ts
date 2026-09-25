@@ -1,8 +1,8 @@
 // 应用菜单（macOS）：关于、检查更新、编辑（剪贴板快捷键靠它）、显示、窗口、帮助。
 import { app, Menu, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
-import { join } from 'path'
-import { APP_NAME, COPYRIGHT, ISSUES_URL, RELEASES_URL, REPO_URL } from './meta'
+import { existsSync } from 'fs'
+import { APP_NAME, COPYRIGHT, devIconPath, ISSUES_URL, RELEASES_URL, REPO_URL } from './meta'
 import { dataRoot } from './storage'
 
 export interface MenuHooks {
@@ -95,7 +95,7 @@ export function installMenu(hooks: MenuHooks): void {
     credits: '游戏策划工作台',
     website: REPO_URL,
     // 打包后的 .app 自带图标；开发时指给自己的图标文件
-    iconPath: app.isPackaged ? undefined : join(app.getAppPath(), 'build', 'icon.png')
+    iconPath: devIconPath && existsSync(devIconPath) ? devIconPath : undefined
   })
   const template: MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin' ? [appMenu(hooks)] : []),
