@@ -20,6 +20,7 @@ const api: GpApi = {
     importImageFromClipboard: call('library:importImageFromClipboard') as GpApi['library']['importImageFromClipboard'],
     updateImage: call('library:updateImage') as GpApi['library']['updateImage'],
     deleteImage: call('library:deleteImage') as GpApi['library']['deleteImage'],
+    extractPalette: call('library:extractPalette') as GpApi['library']['extractPalette'],
     listPrompts: call('library:listPrompts') as GpApi['library']['listPrompts'],
     createPrompt: call('library:createPrompt') as GpApi['library']['createPrompt'],
     updatePrompt: call('library:updatePrompt') as GpApi['library']['updatePrompt'],

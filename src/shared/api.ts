@@ -45,6 +45,8 @@ export interface GpApi {
     updateImage(id: ID, patch: LibImagePatch): Promise<LibImage>
     /** 移到系统废纸篓 */
     deleteImage(id: ID): Promise<void>
+    /** 从一张图片里提取主色（默认 5 个），十六进制，按明度从深到浅；读不了时返回空数组 */
+    extractPalette(imageId: ID, count?: number): Promise<string[]>
 
     listPrompts(): Promise<Prompt[]>
     createPrompt(input: PromptInput): Promise<Prompt>

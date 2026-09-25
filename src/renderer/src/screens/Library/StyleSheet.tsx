@@ -7,7 +7,7 @@ import type { Style } from '@shared/types'
 import { ProjectLinks } from './common'
 import { SamplePicker } from './SamplePicker'
 import { errText, useDebouncedSave, useProjectsWhere } from './shared'
-import { copyStylePrompt, PaletteEditor, StyleVisual } from './styleParts'
+import { copyStylePrompt, isDefaultPalette, PaletteEditor, StyleVisual } from './styleParts'
 
 interface StyleText {
   name: string
@@ -32,6 +32,7 @@ export function StyleSheet({ style, isNew, onClose }: StyleSheetProps): React.JS
   const [text, setText] = useState<StyleText>({ name: style.name, desc: style.desc, prompt: style.prompt })
   const [picking, setPicking] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [extracting, setExtracting] = useState(false)
   const usedIn = useProjectsWhere(style.id, async (projectId) => (await window.gp.projects.get(projectId)).styleId === style.id)
 
   const save = async (patch: StylePatch): Promise<void> => {
@@ -56,6 +57,32 @@ export function StyleSheet({ style, isNew, onClose }: StyleSheetProps): React.JS
   const saveNow = (patch: StylePatch): void => {
     styles.mutate((list) => list.map((s) => (s.id === style.id ? { ...s, ...patch } : s)))
     void save(patch)
+  }
+
+  /** 从样张提取 5 个主色换掉色板 */
+  const extractFrom = async (imageId: string, auto: boolean): Promise<void> => {
+    setExtracting(true)
+    try {
+      const palette = await window.gp.library.extractPalette(imageId, 5)
+      if (palette.length === 0) {
+        if (!auto) hud.show('读不出这张图的颜色')
+        return
+      }
+      saveNow({ palette })
+      hud.show(auto ? '已按样张生成色板' : '已从样张重新提取色板', { ok: true })
+    } catch (err) {
+      hud.show(`提取色板失败：${errText(err)}`)
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const pickSample = (sampleImageId: string | null): void => {
+    setPicking(false)
+    if (sampleImageId === style.sampleImageId) return
+    saveNow({ sampleImageId })
+    // 色板还是新建时的默认灰阶，说明用户没自己调过：直接按样张生成
+    if (sampleImageId && isDefaultPalette(style.palette)) void extractFrom(sampleImageId, true)
   }
 
   const close = (): void => {
@@ -119,9 +146,19 @@ export function StyleSheet({ style, isNew, onClose }: StyleSheetProps): React.JS
             {style.sampleImageId ? '更换样张…' : '选择样张…'}
           </Button>
           {style.sampleImageId && (
-            <Button size="sm" variant="plain" onClick={() => saveNow({ sampleImageId: null })}>
-              不用样张
-            </Button>
+            <>
+              <Button
+                size="sm"
+                icon="palette"
+                disabled={extracting}
+                onClick={() => void extractFrom(style.sampleImageId!, false)}
+              >
+                {extracting ? '正在提取…' : '从样张提取色板'}
+              </Button>
+              <Button size="sm" variant="plain" onClick={() => saveNow({ sampleImageId: null })}>
+                不用样张
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -176,10 +213,7 @@ export function StyleSheet({ style, isNew, onClose }: StyleSheetProps): React.JS
         open={picking}
         current={style.sampleImageId}
         onClose={() => setPicking(false)}
-        onPick={(sampleImageId) => {
-          setPicking(false)
-          if (sampleImageId !== style.sampleImageId) saveNow({ sampleImageId })
-        }}
+        onPick={pickSample}
       />
       <ConfirmSheet
         open={confirming}

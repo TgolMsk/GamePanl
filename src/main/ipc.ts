@@ -10,10 +10,11 @@ import * as projects from './projects'
 import { resolveImage } from './protocol'
 import type { ResolvedImage } from './protocol'
 import { popupContextMenu } from './contextMenu'
+import { extractPalette } from './palette'
 import { importSample } from './sample'
 import { dataRoot, paths } from './storage'
 import * as updater from './updater'
-import { asBoolean, asId, asObject, asOptionalPaths, asString, fail } from './validate'
+import { asBoolean, asId, asInt, asObject, asOptionalPaths, asString, fail } from './validate'
 
 function emit(...changes: DataChange[]): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -112,6 +113,11 @@ export function registerIpc(): void {
     const { stylesChanged } = await library.deleteImage(asId(id))
     emit({ kind: 'library-images' })
     if (stylesChanged) emit({ kind: 'library-styles' })
+  })
+  handle('library:extractPalette', async (_e, id, count) => {
+    const img = await findImage({ scope: 'library', id: asId(id, '图片 id') })
+    const n = count === undefined ? 5 : asInt(count, '颜色数', 2, 12)
+    return extractPalette(img.path, n)
   })
 
   // ---------- 全局库 · 提示词 ----------

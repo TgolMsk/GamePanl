@@ -6,6 +6,16 @@ import { Icon } from '@renderer/ui'
 import { imageUrl } from '@shared/api'
 import type { Style } from '@shared/types'
 
+/** 新建风格的默认色板（中性灰阶）；选了样张后如果还是这套就自动换成从样张提取的 */
+export const DEFAULT_PALETTE = ['#1D1F24', '#44474F', '#7C808A', '#C4C7CE', '#F2F3F5']
+
+export function isDefaultPalette(palette: ReadonlyArray<string>): boolean {
+  return (
+    palette.length === DEFAULT_PALETTE.length &&
+    palette.every((hex, i) => hex.toUpperCase() === DEFAULT_PALETTE[i])
+  )
+}
+
 /** 复制风格提示词；返回是否复制成功 */
 export async function copyStylePrompt(prompt: string): Promise<boolean> {
   if (!prompt.trim()) {

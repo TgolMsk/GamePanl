@@ -9,10 +9,7 @@ import { LibraryToolbar, LoadError } from './common'
 import { isCmdKey, isPlainKey, useMainKeys } from './keys'
 import { errText, matches, showError, useProjectsWhere } from './shared'
 import { StyleSheet } from './StyleSheet'
-import { copyStylePrompt, StyleVisual } from './styleParts'
-
-/** 新建风格的默认色板（中性灰阶，之后再改） */
-const DEFAULT_PALETTE = ['#1D1F24', '#44474F', '#7C808A', '#C4C7CE', '#F2F3F5']
+import { copyStylePrompt, DEFAULT_PALETTE, StyleVisual } from './styleParts'
 
 const nameOf = (s: Style): string => s.name.trim() || '未命名风格'
 
