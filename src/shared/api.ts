@@ -12,7 +12,8 @@ import type {
   ProjectAsset,
   ProjectSummary,
   Prompt,
-  Style
+  Style,
+  UpdateState
 } from './types'
 
 export type LibImagePatch = Partial<Pick<LibImage, 'name' | 'category' | 'tags'>>
@@ -90,11 +91,27 @@ export interface GpApi {
     revealImage(ref: ImageRef): Promise<void>
   }
 
+  /** 在线更新：到 GitHub Releases 按版本号检测，安装包下载到「下载」文件夹后由用户打开安装 */
+  update: {
+    getState(): Promise<UpdateState>
+    /** 手动检查（忽略「跳过的版本」） */
+    check(): Promise<UpdateState>
+    download(): Promise<void>
+    cancelDownload(): Promise<void>
+    openDownloaded(): Promise<void>
+    revealDownloaded(): Promise<void>
+    openReleasePage(): Promise<void>
+    skipVersion(version: string): Promise<void>
+    setAutoCheck(on: boolean): Promise<void>
+  }
+
   /** 拖进窗口的 File 对象对应的本地路径（Electron webUtils） */
   pathForFile(file: File): string
 
   /** 订阅数据变化；返回取消订阅函数 */
   onDataChanged(listener: (change: DataChange) => void): () => void
+  /** 订阅更新状态变化；返回取消订阅函数 */
+  onUpdateState(listener: (state: UpdateState) => void): () => void
 }
 
 /** 图片地址：主进程注册的 gp:// 协议。thumb 给出缩略图的最长边像素，不给则是原图 */
@@ -108,3 +125,5 @@ export function imageUrl(ref: ImageRef, thumb?: number): string {
 
 /** IPC 通道名：`<模块>:<方法>`，如 library:listImages。数据变化事件通道： */
 export const DATA_CHANGED_CHANNEL = 'data:changed'
+/** 更新状态变化事件通道 */
+export const UPDATE_STATE_CHANNEL = 'update:state'

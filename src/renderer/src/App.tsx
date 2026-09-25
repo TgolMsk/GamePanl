@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAppInfoSync } from './app/appInfo'
 import { useLibImages, useProjects, usePrompts, useStyles } from './app/data'
 import { go, HOME_ROUTE, useNav, useRoute, type Route } from './app/nav'
+import { useUpdateSync } from './app/update'
 import LibraryScreen from './screens/Library'
 import ProjectAssetsScreen from './screens/ProjectAssets'
 import ProjectConfigScreen from './screens/ProjectConfig'
@@ -9,6 +10,7 @@ import ProjectNotesScreen from './screens/ProjectNotes'
 import { DropOverlay } from './shell/DropOverlay'
 import { NewProjectSheet } from './shell/NewProjectSheet'
 import { Sidebar } from './shell/Sidebar'
+import { UpdateSheet } from './shell/UpdateSheet'
 import { Welcome } from './shell/Welcome'
 import { Hud } from './ui/Hud'
 
@@ -93,6 +95,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
 
 export default function App(): React.JSX.Element {
   useAppInfoSync()
+  useUpdateSync()
   const route = useRoute()
   const booted = useBoot()
   const projectMissing = useProjectGuard(route)
@@ -105,6 +108,7 @@ export default function App(): React.JSX.Element {
         <DropOverlay />
       </div>
       <NewProjectSheet />
+      <UpdateSheet />
       <Hud />
     </div>
   )

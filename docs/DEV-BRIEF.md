@@ -20,7 +20,7 @@
 - Electron 44 + electron-vite 5 + Vite 7 + React 19 + TypeScript（strict）+ zustand。包管理用 npm。
 - `src/shared/types.ts`、`src/shared/api.ts`：**数据类型与接口契约**。界面只通过 `window.gp`（`GpApi`）访问数据；图片地址用 `imageUrl(ref, thumb?)`（gp:// 协议）。改接口时三处一起改：契约、`src/preload/index.ts` 的通道映射、`src/main/ipc.ts` 的实现。
 - `src/preload/index.ts`：把每个方法映射到 IPC 通道 `<模块>:<方法>`（如 `library:listImages`）。
-- `src/main/`：主进程。`index.ts` 窗口（hiddenInset 标题栏、vibrancy 侧栏）；`storage.ts` 目录与原子写；`library.ts`、`projects.ts`、`images.ts`、`notesmd.ts`（笔记 Markdown 往返）、`thumbs.ts`、`protocol.ts`（gp://）、`ipc.ts`、`sample.ts`（示例内容）、`devshot.ts`（开发截图钩子）。
+- `src/main/`：主进程。`index.ts` 窗口（hiddenInset 标题栏、vibrancy 侧栏）；`storage.ts` 目录与原子写；`library.ts`、`projects.ts`、`images.ts`、`notesmd.ts`（笔记 Markdown 往返）、`thumbs.ts`、`protocol.ts`（gp://）、`ipc.ts`、`sample.ts`（示例内容）、`devshot.ts`（开发截图钩子）、`menu.ts`（应用菜单与关于面板）、`updater.ts`（在线更新：GitHub Releases 版本检测、安装包下载）、`settings.ts`（应用设置，存在 userData/settings.json）、`meta.ts`（从 package.json 取仓库地址）。
 - `src/renderer/src/`：`ui/` 基础组件（用法见 `ui/README.md`）、`app/` 导航 / 数据钩子 / HUD / 复制助手、`shell/` 侧栏与外壳、`screens/` 四个界面、`styles/` 设计变量与全局样式。
 
 ## 数据目录
@@ -45,6 +45,7 @@
 - `GAMEPANL_DATA_ROOT=<dir>`：数据目录。
 - `GAMEPANL_SHOT_DIR=<dir> GAMEPANL_SHOT_SAMPLE=1`：启动后自动导入示例、依次截六个界面的图到该目录，然后退出（用于快速核对界面）。
 - `GAMEPANL_LOG_CONSOLE=1`：把界面 console 和渲染进程的错误打印到终端。
+- `GAMEPANL_UPDATE_CHECK=1`：开发模式下也自动检查更新（默认只有打包后的应用才检查）；`GAMEPANL_FAKE_VERSION=0.0.1` 假装成旧版本，用来看「有新版本」的界面。发布流程见 README「发布新版本」。
 
 ## 质量要求
 - `npm run typecheck` 和 `npm run build` 必须通过。

@@ -11,7 +11,8 @@ import { resolveImage } from './protocol'
 import type { ResolvedImage } from './protocol'
 import { importSample } from './sample'
 import { dataRoot } from './storage'
-import { asId, asObject, asOptionalPaths, asString, fail } from './validate'
+import * as updater from './updater'
+import { asBoolean, asId, asObject, asOptionalPaths, asString, fail } from './validate'
 
 function emit(...changes: DataChange[]): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -243,4 +244,15 @@ export function registerIpc(): void {
   handle('shell:revealImage', async (_e, ref) => {
     shell.showItemInFolder((await findImage(ref)).path)
   })
+
+  // ---------- 在线更新 ----------
+  handle('update:getState', () => updater.getState())
+  handle('update:check', () => updater.checkForUpdates(true))
+  handle('update:download', () => updater.downloadUpdate())
+  handle('update:cancelDownload', () => updater.cancelDownload())
+  handle('update:openDownloaded', () => updater.openDownloaded())
+  handle('update:revealDownloaded', () => updater.revealDownloaded())
+  handle('update:openReleasePage', () => updater.openReleasePage())
+  handle('update:skipVersion', (_e, version) => updater.skipVersion(asString(version, '版本号', 100)))
+  handle('update:setAutoCheck', (_e, on) => updater.setAutoCheck(asBoolean(on, '自动检查更新')))
 }

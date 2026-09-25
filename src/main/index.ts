@@ -4,6 +4,11 @@ import { initStorage } from './storage'
 import { registerIpc } from './ipc'
 import { registerImageProtocol } from './protocol'
 import { setupDevShot } from './devshot'
+import { installMenu } from './menu'
+import { APP_NAME } from './meta'
+import { checkForUpdates, initUpdater, startAutoCheck } from './updater'
+
+app.setName(APP_NAME)
 
 // gp://image/... 用来把本地图片安全地交给界面显示（见 src/shared/api.ts 的 imageUrl）
 protocol.registerSchemesAsPrivileged([
@@ -57,10 +62,18 @@ app.whenReady().then(async () => {
   if (process.platform === 'darwin' && !app.isPackaged) {
     app.dock?.setIcon(join(app.getAppPath(), 'build', 'icon.png'))
   }
+  installMenu({
+    onCheckForUpdates: () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      void checkForUpdates(true)
+    }
+  })
   await initStorage()
+  await initUpdater()
   registerImageProtocol()
   registerIpc()
   createWindow()
+  startAutoCheck()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

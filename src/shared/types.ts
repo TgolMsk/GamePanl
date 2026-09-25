@@ -188,6 +188,46 @@ export interface AppInfo {
   libraryEmpty: boolean
 }
 
+// ---------- 在线更新 ----------
+
+export interface UpdateAsset {
+  name: string
+  url: string
+  bytes: number
+}
+
+/** GitHub 上最新的一个正式版本（预发布和草稿不算） */
+export interface UpdateRelease {
+  /** 版本号，不带 v 前缀 */
+  version: string
+  /** Release 标题 */
+  name: string
+  /** Release 正文（Markdown 原文） */
+  notes: string
+  /** Release 页面地址 */
+  url: string
+  publishedAt: ISODate
+  /** 适合当前平台和芯片的安装包；没有时为 null（只能去页面下载） */
+  asset: UpdateAsset | null
+}
+
+export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'downloaded' | 'error'
+
+export interface UpdateState {
+  phase: UpdatePhase
+  currentVersion: string
+  release: UpdateRelease | null
+  progress: { received: number; total: number } | null
+  /** 已下载到「下载」文件夹的安装包路径 */
+  filePath: string | null
+  error: string | null
+  /** 这一轮检查是不是用户手动发起的（手动时界面弹出「软件更新」窗口） */
+  manual: boolean
+  autoCheck: boolean
+  lastCheckAt: ISODate | null
+  skippedVersion: string | null
+}
+
 /** 主进程在数据变化后广播的事件，界面据此刷新 */
 export type DataChange =
   | { kind: 'library-images' }

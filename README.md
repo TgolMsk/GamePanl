@@ -26,9 +26,13 @@
 
 **界面**参考 macOS 原生应用：访达式侧栏（毛玻璃）、统一工具栏、系统设置式分组表单、分段控件；跟随系统的深浅色和强调色。
 
-## 安装与运行
+## 安装
 
-需要 macOS 和 Node.js 20+。
+**直接下载**：到 [Releases](https://github.com/TgolMsk/GamePanl/releases/latest) 下载 dmg，Apple 芯片选 `GamePanl-<版本>-arm64.dmg`，Intel 选 `-x64.dmg`，打开后把 GamePanl 拖进「应用程序」。
+
+> 安装包目前没有 Apple 开发者签名。第一次打开如果提示「无法验证开发者」或「已损坏」：在访达里右键 GamePanl → 打开，或到 系统设置 → 隐私与安全性 里点「仍要打开」；也可以在终端执行 `xattr -cr /Applications/GamePanl.app`。
+
+**从源码运行**（需要 Node.js 20+）：
 
 ```bash
 git clone https://github.com/TgolMsk/GamePanl.git
@@ -39,13 +43,13 @@ npm run dev
 
 首次启动会出现欢迎页，点「导入示例内容」可以看到示例项目「雾港」：14 张示例图片、12 条提示词、9 种风格、9 条策划笔记和 24 张项目资料。
 
-打包成 .app / .dmg：
+自己打包：`npm run dist`，产物在 `release/`。
 
-```bash
-npm run dist
-```
+## 在线更新
 
-产物在 `release/`。
+应用会按 GitHub Releases 的版本号检查更新：启动 8 秒后检查一次，之后每 6 小时一次；也可以在菜单 **GamePanl → 检查更新…** 手动检查。有新版本时侧栏底部会出现提示，点开能看到更新说明，「下载更新」会把对应芯片的 dmg 下载到「下载」文件夹，下载完直接打开安装包替换即可。可以「跳过这个版本」，或在更新窗口里关掉自动检查。
+
+预发布版本（tag 带 `-beta` 等后缀）不会推送给正式用户。
 
 ## 数据存放
 
@@ -84,11 +88,21 @@ docs/            开发说明、界面原型、截图
 
 开发说明见 [docs/DEV-BRIEF.md](docs/DEV-BRIEF.md)。
 
+## 发布新版本
+
+```bash
+npm version 0.2.0        # 改 package.json 版本，生成提交和 v0.2.0 标签
+git push --follow-tags   # 推送后 GitHub Actions 自动构建 dmg / zip 并创建 Release
+```
+
+Release 创建后，所有用户的应用都会检测到新版本。工作流见 [`.github/workflows/release.yml`](.github/workflows/release.yml)，它会校验 package.json 的版本和 tag 一致，并用 `--generate-notes` 从提交记录生成更新说明（发布后可以在 GitHub 上再改）。
+
 ## 路线
 
 - [x] 全局库：图片素材 / 提示词 / 风格
 - [x] 项目：配置 / 构思 / 资料
 - [x] 单击复制、预览、深浅色、系统强调色
+- [x] 在线更新（GitHub Releases 版本检测 + 下载安装包）
 - [ ] 图文思维导图（故事线、关卡结构）
 - [ ] 全局搜索（⌘K）
 - [ ] Windows 支持

@@ -1,0 +1,60 @@
+# 打 tag（v1.2.3）就构建 macOS 安装包并发布到 GitHub Releases，应用里的「检查更新」按这里的版本号检测。
+# 用法：改好 package.json 的 version 后执行
+#   npm version 0.2.0        # 生成提交和 v0.2.0 标签
+#   git push --follow-tags
+# tag 带 -beta / -rc 等后缀时发布为预发布（Pre-release），正式用户不会收到提示。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: 校验 package.json 版本与 tag 一致
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "package.json 的版本是 $PKG，tag 是 $TAG，两者必须一致"
+            exit 1
+          fi
+
+      - run: npm run typecheck
+
+      - name: 构建安装包
+        run: npm run dist
+        env:
+          # 没有配签名证书，跳过签名（用户首次打开需要在「隐私与安全性」里允许）
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          VERSION="${GITHUB_REF_NAME#v}"
+          PRERELEASE=""
+          case "$VERSION" in
+            *-*) PRERELEASE="--prerelease" ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" \
+            release/*.dmg release/*.zip release/*.yml release/*.blockmap \
+            --title "GamePanl $VERSION" \
+            --generate-notes \
+            $PRERELEASE

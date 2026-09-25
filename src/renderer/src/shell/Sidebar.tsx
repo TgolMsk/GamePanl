@@ -4,6 +4,7 @@ import { go, useNav, type LibraryTab, type ProjectTab } from '../app/nav'
 import { cx } from '../ui/cx'
 import { Icon, type IconName } from '../ui/Icon'
 import { openNewProject } from './NewProjectSheet'
+import { UpdateBanner } from './UpdateBanner'
 
 interface NavItemProps {
   icon: IconName
@@ -115,6 +116,7 @@ export function Sidebar(): React.JSX.Element {
           <div className="sidebar-hint">还没有项目</div>
         )}
       </div>
+      <UpdateBanner />
       <button type="button" className="nv new" onClick={openNewProject}>
         <span className="ic">
           <Icon name="plus" />

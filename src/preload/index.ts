@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { GpApi } from '@shared/api'
-import { DATA_CHANGED_CHANNEL } from '@shared/api'
-import type { DataChange } from '@shared/types'
+import { DATA_CHANGED_CHANNEL, UPDATE_STATE_CHANNEL } from '@shared/api'
+import type { DataChange, UpdateState } from '@shared/types'
 
 const call =
   (channel: string) =>
@@ -54,11 +54,27 @@ const api: GpApi = {
   shell: {
     revealImage: call('shell:revealImage') as GpApi['shell']['revealImage']
   },
+  update: {
+    getState: call('update:getState') as GpApi['update']['getState'],
+    check: call('update:check') as GpApi['update']['check'],
+    download: call('update:download') as GpApi['update']['download'],
+    cancelDownload: call('update:cancelDownload') as GpApi['update']['cancelDownload'],
+    openDownloaded: call('update:openDownloaded') as GpApi['update']['openDownloaded'],
+    revealDownloaded: call('update:revealDownloaded') as GpApi['update']['revealDownloaded'],
+    openReleasePage: call('update:openReleasePage') as GpApi['update']['openReleasePage'],
+    skipVersion: call('update:skipVersion') as GpApi['update']['skipVersion'],
+    setAutoCheck: call('update:setAutoCheck') as GpApi['update']['setAutoCheck']
+  },
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   onDataChanged: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, change: DataChange): void => listener(change)
     ipcRenderer.on(DATA_CHANGED_CHANNEL, handler)
     return () => ipcRenderer.removeListener(DATA_CHANGED_CHANNEL, handler)
+  },
+  onUpdateState: (listener) => {
+    const handler = (_e: Electron.IpcRendererEvent, state: UpdateState): void => listener(state)
+    ipcRenderer.on(UPDATE_STATE_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, handler)
   }
 }
 

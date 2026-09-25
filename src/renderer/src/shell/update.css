@@ -1,0 +1,214 @@
+/* 在线更新：侧栏提示 + 「软件更新」窗口 */
+
+/* ---------- 侧栏提示 ---------- */
+.upd-banner {
+  position: relative;
+  margin: 4px 0 6px;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+.upd-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 30px 9px 10px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--tx);
+  text-align: left;
+}
+.upd-banner-main:hover {
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
+}
+.upd-banner-main:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.upd-banner-main .ic {
+  display: inline-flex;
+  color: var(--acc);
+  flex: none;
+}
+.upd-banner-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+.upd-banner-text .t {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.upd-banner-text .h {
+  font-size: 11.5px;
+  color: var(--tx2);
+}
+.upd-banner-x {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tx2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.upd-banner-x:hover {
+  background: var(--fill2);
+  color: var(--tx);
+}
+.upd-banner-x:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* ---------- 「软件更新」窗口 ---------- */
+.upd-body {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+.upd-status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 0;
+  text-align: center;
+}
+.upd-status-ic {
+  display: inline-flex;
+  color: var(--acc);
+  margin-bottom: 4px;
+}
+.upd-status-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.upd-status-detail {
+  font-size: 12.5px;
+  color: var(--tx2);
+  max-width: 400px;
+  line-height: 1.5;
+}
+.upd-spinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2.5px solid var(--fill);
+  border-top-color: var(--acc);
+  animation: upd-spin 0.8s linear infinite;
+}
+@keyframes upd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.upd-release {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.upd-release-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.upd-notes {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border-radius: var(--r-card);
+  border: 0.5px solid var(--sep);
+  background: var(--bg2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  user-select: text;
+}
+.upd-notes h4 {
+  margin: 10px 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.upd-notes h4:first-child,
+.upd-notes p:first-child,
+.upd-notes ul:first-child {
+  margin-top: 0;
+}
+.upd-notes p {
+  margin: 0 0 8px;
+}
+.upd-notes ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.upd-notes li {
+  margin: 2px 0;
+}
+.upd-notes a {
+  color: var(--acc);
+  text-decoration: none;
+}
+.upd-notes a:hover {
+  text-decoration: underline;
+}
+
+.upd-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upd-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fill2);
+  overflow: hidden;
+}
+.upd-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--acc);
+  transition: width 0.15s linear;
+}
+.upd-done {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--tx);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.upd-done svg {
+  flex: none;
+  color: var(--ok);
+  margin-top: 2px;
+}
+
+.upd-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--tx2);
+}
+.upd-auto input {
+  margin: 0;
+  accent-color: var(--acc);
+}
