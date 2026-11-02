@@ -58,6 +58,12 @@ const ICONS = {
   ),
   play: <path d="M8 5.8v12.4a.6.6 0 0 0 .9.5l9.6-6.2a.6.6 0 0 0 0-1L8.9 5.3a.6.6 0 0 0-.9.5z" />,
   pause: <path d="M8.5 5.5v13M15.5 5.5v13" />,
+  film: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M8 4.5v15M16 4.5v15M3.5 9h4.5M3.5 15h4.5M16 9h4.5M16 15h4.5" />
+    </>
+  ),
   scope: (
     <>
       <circle cx="12" cy="12" r="7" />

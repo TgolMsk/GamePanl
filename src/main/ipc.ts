@@ -1,13 +1,16 @@
 // IPC：按 src/shared/api.ts 的 GpApi 注册全部通道（通道名 `<模块>:<方法>`，与 src/preload/index.ts 一一对应）。
 // 修改数据的操作完成后向所有窗口广播 DATA_CHANGED_CHANNEL。
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, shell, systemPreferences } from 'electron'
 import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
 import { DATA_CHANGED_CHANNEL } from '@shared/api'
+import { SPRITE_VIDEO_EXTENSIONS } from '@shared/sprites'
 import type { AppInfo, DataChange, ID, ImageRef, LibModel } from '@shared/types'
 import { copyImageToClipboard, IMPORT_EXTENSIONS } from './images'
 import * as library from './library'
 import * as models from './models'
 import * as projects from './projects'
+import * as sprites from './sprites'
+import { encodePng } from './spriteExport'
 import { resolveImage } from './protocol'
 import type { ResolvedImage } from './protocol'
 import { popupContextMenu } from './contextMenu'
@@ -36,6 +39,21 @@ async function pickImages(event: IpcMainInvokeEvent, paths: string[] | undefined
     buttonLabel: '添加',
     properties: ['openFile', 'multiSelections'],
     filters: [{ name: '图片', extensions: IMPORT_EXTENSIONS }]
+  }
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+  return res.canceled ? [] : res.filePaths
+}
+
+/** 没给路径时弹出系统选择框：选视频文件或文件夹 */
+async function pickVideos(event: IpcMainInvokeEvent, paths: string[] | undefined, title: string): Promise<string[]> {
+  if (paths) return paths
+  const options: OpenDialogOptions = {
+    title,
+    message: '选择绿幕动作视频（mp4 / mov），或装着一个角色全部动作视频的文件夹',
+    buttonLabel: '导入',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
+    filters: [{ name: '视频', extensions: SPRITE_VIDEO_EXTENSIONS }]
   }
   const win = BrowserWindow.fromWebContents(event.sender)
   const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
@@ -355,6 +373,88 @@ export function registerIpc(): void {
     const pid = asId(projectId)
     await projects.removeProjectModels(pid, asIds(ids, '模型 id'))
     emit({ kind: 'models', projectId: pid }, { kind: 'projects' })
+  })
+
+  // ---------- 项目 · 序列帧 ----------
+  const spritesChanged = (pid: string, projectList = false): void => {
+    emit({ kind: 'sprites', projectId: pid })
+    if (projectList) emit({ kind: 'projects' })
+  }
+  handle('sprites:list', async (_e, projectId) => {
+    const pid = asId(projectId)
+    await projects.assertProject(pid)
+    return sprites.listCharacters(pid)
+  })
+  handle('sprites:create', async (event, projectId, paths, height) => {
+    const pid = asId(projectId)
+    await projects.assertProject(pid)
+    const files = await pickVideos(event, asOptionalPaths(paths), '导入动作视频')
+    if (files.length === 0) return { created: [], merged: [], skipped: [] }
+    const r = await sprites.createCharacters(pid, files, height === undefined || height === null ? undefined : asInt(height, '像素身高', 8, 512))
+    if (r.created.length || r.merged.length) spritesChanged(pid, true)
+    return r
+  })
+  handle('sprites:addActions', async (event, projectId, id, paths) => {
+    const pid = asId(projectId)
+    const cid = asId(id, '角色 id')
+    await sprites.getCharacter(pid, cid)
+    const files = await pickVideos(event, asOptionalPaths(paths), '添加动作视频')
+    const r = await sprites.addActions(pid, cid, files)
+    if (r.added.length) spritesChanged(pid)
+    return r
+  })
+  handle('sprites:update', async (_e, projectId, id, patch) => {
+    const pid = asId(projectId)
+    const c = await sprites.updateCharacter(pid, asId(id, '角色 id'), patch)
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:updateAction', async (_e, projectId, id, actionId, patch) => {
+    const pid = asId(projectId)
+    const c = await sprites.updateAction(pid, asId(id, '角色 id'), asId(actionId, '动作 id'), patch)
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:applyParamsToAll', async (_e, projectId, id, params) => {
+    const pid = asId(projectId)
+    const c = await sprites.applyParamsToAll(pid, asId(id, '角色 id'), params)
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:reorderActions', async (_e, projectId, id, order) => {
+    const pid = asId(projectId)
+    const c = await sprites.reorderActions(pid, asId(id, '角色 id'), asIds(order, '动作 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:deleteAction', async (_e, projectId, id, actionId) => {
+    const pid = asId(projectId)
+    const c = await sprites.deleteAction(pid, asId(id, '角色 id'), asId(actionId, '动作 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:remove', async (_e, projectId, id) => {
+    const pid = asId(projectId)
+    await sprites.deleteCharacter(pid, asId(id, '角色 id'))
+    spritesChanged(pid, true)
+  })
+  handle('sprites:export', async (_e, projectId, id, payload, dir) => {
+    const pid = asId(projectId)
+    const r = await sprites.exportCharacter(pid, asId(id, '角色 id'), payload, asString(dir, '导出目录', 4096), app.getVersion())
+    spritesChanged(pid)
+    if (r.assets) emit({ kind: 'assets', projectId: pid }, { kind: 'projects' })
+    return r
+  })
+  handle('sprites:detectGodot', (_e, dir) => sprites.detectGodotPrefix(asString(dir, '目录', 4096)))
+  handle('sprites:reveal', async (_e, path) => {
+    const p = asString(path, '路径', 4096)
+    if (!(await exists(p))) fail('文件夹不存在了')
+    shell.showItemInFolder(p)
+  })
+  handle('sprites:copyImage', async (_e, rgba, width, height) => {
+    if (!(rgba instanceof Uint8Array)) fail('图片数据不对')
+    const png = encodePng(rgba, asInt(width, '宽', 1, 16384), asInt(height, '高', 1, 16384))
+    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })])
   })
 
   // ---------- 剪贴板 / 访达 ----------

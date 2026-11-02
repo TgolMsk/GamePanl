@@ -185,6 +185,8 @@ export interface ProjectSummary {
   noteCount: number
   assetCount: number
   modelCount: number
+  /** 序列帧角色数 */
+  spriteCount: number
   coverAssetId: ID | null
   updatedAt: ISODate
 }
@@ -328,3 +330,4 @@ export type DataChange =
   | { kind: 'notes'; projectId: ID }
   | { kind: 'assets'; projectId: ID }
   | { kind: 'models'; projectId: ID }
+  | { kind: 'sprites'; projectId: ID }

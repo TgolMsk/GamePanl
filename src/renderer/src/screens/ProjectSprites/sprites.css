@@ -1,0 +1,526 @@
+/* 项目 · 序列帧。类名前缀 .sp- */
+
+/* ---------- 左栏：角色与动作 ---------- */
+.sp-list {
+  width: 248px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 0.5px solid var(--sep);
+  background: var(--bg2);
+  overflow-y: auto;
+  padding: 10px 8px 24px;
+  gap: 2px;
+}
+.sp-chr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  margin-top: 8px;
+  border-radius: var(--r-ctl);
+  color: var(--tx2);
+  font-size: 12px;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: default;
+}
+.sp-chr:first-child {
+  margin-top: 0;
+}
+.sp-chr .nm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tx);
+  font-size: 13px;
+}
+.sp-chr .ct {
+  font-weight: 400;
+  color: var(--tx2);
+}
+.sp-chr .more {
+  opacity: 0;
+}
+.sp-chr:hover .more,
+.sp-chr .more:focus-visible {
+  opacity: 1;
+}
+.sp-act {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 8px;
+  border-radius: var(--r-card);
+  background: none;
+  border: 0;
+  text-align: left;
+  color: var(--tx);
+  cursor: default;
+  width: 100%;
+}
+.sp-act:hover {
+  background: var(--fill2);
+}
+.sp-act.on {
+  background: var(--card);
+  box-shadow: 0 0 0 0.5px var(--sep);
+}
+.sp-act .th {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+}
+.sp-act .tx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sp-act .nm {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-act .mt {
+  font-size: 11.5px;
+  color: var(--tx2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-act .mt.err {
+  color: var(--danger);
+}
+.sp-badge {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+.sp-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--tx2);
+  font-size: 12px;
+  border-radius: var(--r-ctl);
+  cursor: default;
+}
+.sp-add:hover {
+  color: var(--tx);
+  background: var(--fill2);
+}
+
+/* ---------- 中间：预览 ---------- */
+.sp-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.sp-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--sep);
+  flex-wrap: wrap;
+}
+.sp-bar .lbl {
+  white-space: nowrap;
+}
+.sp-bar .sep {
+  width: 0.5px;
+  height: 18px;
+  background: var(--sep);
+}
+.sp-view {
+  flex: 1;
+  min-height: 160px;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 20px;
+  position: relative;
+}
+.sp-view.bg-gray {
+  background: #808080;
+}
+.sp-view.bg-black {
+  background: #000;
+}
+.sp-view.bg-white {
+  background: #fff;
+}
+.sp-cell {
+  position: relative;
+  flex: none;
+}
+.sp-cell canvas {
+  display: block;
+}
+.sp-cell .cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--tx2);
+  white-space: nowrap;
+}
+.sp-view.bg-black .sp-cell .cap,
+.sp-view.bg-gray .sp-cell .cap {
+  color: rgba(255, 255, 255, 0.85);
+}
+.sp-pv {
+  position: absolute;
+  pointer-events: none;
+}
+.sp-pv.ground {
+  left: -12px;
+  right: -12px;
+  height: 0;
+  border-top: 1px dashed var(--acc);
+}
+.sp-pv.pivot {
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border: 1.5px solid var(--acc);
+  border-radius: 50%;
+}
+.sp-pv.frame {
+  inset: 0;
+  border: 0.5px solid var(--acc);
+  opacity: 0.5;
+}
+.sp-msg {
+  color: var(--tx2);
+  text-align: center;
+  max-width: 360px;
+  line-height: 1.6;
+}
+.sp-msg.err {
+  color: var(--danger);
+}
+
+/* 帧条 */
+.sp-strip {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  border-top: 0.5px solid var(--sep);
+  background: var(--bg2);
+}
+.sp-fr {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-img);
+  border: 0;
+  background: none;
+  cursor: default;
+}
+.sp-fr .img {
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sp-fr.on .img {
+  box-shadow: 0 0 0 2px var(--acc);
+}
+.sp-fr .n {
+  font-size: 10.5px;
+  color: var(--tx2);
+  font-family: var(--mono);
+}
+.sp-fr .n.ed {
+  color: var(--acc);
+}
+.sp-fr .tools {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  display: none;
+  justify-content: space-between;
+}
+.sp-fr:hover .tools,
+.sp-fr:focus-within .tools {
+  display: flex;
+}
+.sp-fr .tools button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: var(--img-btn);
+  color: var(--on-dark);
+  padding: 0;
+}
+.sp-fr.gone {
+  opacity: 0.55;
+}
+.sp-fr.gone .img {
+  display: grid;
+  place-items: center;
+  background: var(--fill2);
+  color: var(--tx2);
+  font-size: 11px;
+}
+
+/* 时间轴 */
+.sp-tl {
+  flex: none;
+  padding: 8px 14px 12px;
+  border-top: 0.5px solid var(--sep);
+  background: var(--bg2);
+}
+.sp-tl .hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sp-tl .hd .grow {
+  flex: 1;
+}
+.sp-tlbox {
+  position: relative;
+  height: 44px;
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+  background: var(--fill);
+  touch-action: none;
+}
+.sp-tlbox canvas {
+  position: absolute;
+  inset: 0;
+}
+.sp-tlbox .dim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.sp-tlbox .seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid var(--acc);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.sp-tlbox .hdl {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  margin-left: -6px;
+  cursor: ew-resize;
+}
+.sp-tlbox .tick {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+  background: var(--acc);
+  pointer-events: none;
+}
+.sp-tlbox .cur {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1.5px solid #fff;
+  pointer-events: none;
+}
+
+/* ---------- 右栏 ---------- */
+.sp-insp {
+  overflow-y: auto;
+}
+.sp-qc {
+  display: flex;
+  flex-direction: column;
+}
+.sp-qi {
+  display: flex;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 0;
+  border-top: 0.5px solid var(--sep);
+  background: none;
+  text-align: left;
+  color: var(--tx);
+  font-size: 12.5px;
+  cursor: default;
+  width: 100%;
+}
+.sp-qi:first-child {
+  border-top: 0;
+}
+.sp-qi.link:hover {
+  background: var(--fill2);
+}
+.sp-qi .ic {
+  flex: none;
+  margin-top: 1px;
+  color: var(--tx3);
+}
+.sp-qi.ok .ic {
+  color: var(--ok);
+}
+.sp-qi.warn .ic {
+  color: var(--warn);
+}
+.sp-qi .bd {
+  flex: 1;
+  min-width: 0;
+}
+.sp-qi .row {
+  display: flex;
+  gap: 8px;
+}
+.sp-qi .row .val {
+  margin-left: auto;
+  color: var(--tx2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.sp-qi .why {
+  margin-top: 2px;
+  color: var(--tx2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.sp-disc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--tx);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: default;
+}
+.sp-disc .sub {
+  font-weight: 400;
+  color: var(--tx2);
+  font-size: 12px;
+  margin-left: 4px;
+}
+.sp-disc svg {
+  transition: transform 0.15s;
+}
+.sp-disc.closed svg {
+  transform: rotate(-90deg);
+}
+.sp-pal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 10px 12px;
+}
+.sp-pal span {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+}
+.sp-dec {
+  width: 58px;
+}
+.sp-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sp-note {
+  font-size: 11.5px;
+  color: var(--tx2);
+  line-height: 1.5;
+  padding: 0 4px;
+}
+
+/* 框选水印 */
+.sp-wm {
+  position: relative;
+  margin: 0 auto;
+  user-select: none;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sp-wm canvas {
+  display: block;
+  border-radius: var(--r-img);
+}
+.sp-wm .box {
+  position: absolute;
+  border: 2px solid var(--acc);
+  background: rgba(0, 113, 227, 0.12);
+  pointer-events: none;
+}
+.sp-wm .box.det {
+  border-style: dashed;
+  background: none;
+}
+
+/* 导出 */
+.sp-path {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--tx2);
+  word-break: break-all;
+  text-align: right;
+}
+.sp-files {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--tx2);
+  line-height: 1.7;
+  white-space: pre;
+  padding: 10px 14px;
+  overflow-x: auto;
+}

@@ -20,6 +20,7 @@ import type {
   Style,
   UpdateState
 } from './types'
+import type { SpriteAction, SpriteActionParams, SpriteActionPatch, SpriteCharacter, SpriteCharacterPatch, SpriteExportBundle } from './sprites'
 
 export type LibImagePatch = Partial<Pick<LibImage, 'name' | 'category' | 'tags'>>
 export type LibModelPatch = Partial<Pick<LibModel, 'name' | 'category' | 'tags'>>
@@ -30,6 +31,34 @@ export type StylePatch = Partial<StyleInput>
 export type ProjectPatch = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt'>>
 export type NoteInput = Partial<Pick<Note, 'title' | 'category' | 'blocks'>>
 export type AssetPatch = Partial<Pick<ProjectAsset, 'name' | 'category' | 'tags'>>
+
+/** 导入序列帧视频的结果 */
+export interface SpriteImportResult {
+  created: SpriteCharacter[]
+  /** 和已有角色同名：动作加进了已有角色 */
+  merged: SpriteCharacter[]
+  skipped: Array<{ path: string; reason: string }>
+}
+
+export interface SpriteAddResult {
+  character: SpriteCharacter
+  added: SpriteAction[]
+  skipped: Array<{ path: string; reason: string }>
+}
+
+/** 界面送去导出的内容；角色名、Godot 路径、版本号由主进程补上 */
+export type SpriteExportPayload = Omit<SpriteExportBundle, 'name' | 'godotPrefix' | 'appVersion'>
+
+export interface SpriteExportOutcome {
+  /** 写出的角色文件夹 */
+  folder: string
+  files: number
+  /** 存进项目资料的图片数 */
+  assets: number
+  /** 实际用的 res:// 目录；null 表示写的是相对路径 */
+  godotPrefix: string | null
+  character: SpriteCharacter
+}
 
 export interface GpApi {
   app: {
@@ -113,6 +142,30 @@ export interface GpApi {
     removeModels(projectId: ID, modelIds: ID[]): Promise<void>
   }
 
+  /** 序列帧：AI 绿幕动作视频 → 像素序列帧（每个项目下若干角色，每个角色若干动作） */
+  sprites: {
+    list(projectId: ID): Promise<SpriteCharacter[]>
+    /** 导入视频新建角色：每个文件夹一个角色，一起拖进来的零散视频算一个角色。没给路径时弹出选择框 */
+    create(projectId: ID, paths?: string[], height?: number): Promise<SpriteImportResult>
+    /** 给角色添加动作视频。没给路径时弹出选择框 */
+    addActions(projectId: ID, id: ID, paths?: string[]): Promise<SpriteAddResult>
+    update(projectId: ID, id: ID, patch: SpriteCharacterPatch): Promise<SpriteCharacter>
+    updateAction(projectId: ID, id: ID, actionId: ID, patch: SpriteActionPatch): Promise<SpriteCharacter>
+    /** 把一套参数用到全部动作（片段起止、循环 / 单次各自保留） */
+    applyParamsToAll(projectId: ID, id: ID, params: SpriteActionParams): Promise<SpriteCharacter>
+    reorderActions(projectId: ID, id: ID, order: ID[]): Promise<SpriteCharacter>
+    deleteAction(projectId: ID, id: ID, actionId: ID): Promise<SpriteCharacter>
+    remove(projectId: ID, id: ID): Promise<void>
+    /** 导出到 dir/<角色名>/ */
+    export(projectId: ID, id: ID, payload: SpriteExportPayload, dir: string): Promise<SpriteExportOutcome>
+    /** 这个目录在不在 Godot 项目里；在的话返回对应的 res:// 路径 */
+    detectGodot(dir: string): Promise<string | null>
+    /** 在访达中显示导出的文件夹 */
+    reveal(path: string): Promise<void>
+    /** 把一张 RGBA 图写进系统剪贴板 */
+    copyImage(rgba: Uint8Array, width: number, height: number): Promise<void>
+  }
+
   clipboard: {
     /** 把图片原图写进系统剪贴板（可直接粘贴到 ChatGPT、PS 等）；成功返回 true */
     copyImage(ref: ImageRef): Promise<boolean>
@@ -177,6 +230,11 @@ export function imageUrl(ref: ImageRef, thumb?: number): string {
  */
 export function modelFileUrl(id: ID, file: string): string {
   return `gp://model/${encodeURIComponent(id)}/file/${file.split('/').map(encodeURIComponent).join('/')}`
+}
+
+/** 序列帧动作的源视频 */
+export function spriteVideoUrl(projectId: ID, id: ID, actionId: ID): string {
+  return `gp://sprite/${encodeURIComponent(projectId)}/${encodeURIComponent(id)}/${encodeURIComponent(actionId)}`
 }
 
 export function modelPreviewUrl(model: { id: ID; preview: string | null; rendered: boolean }, thumb?: number): string {

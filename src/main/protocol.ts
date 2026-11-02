@@ -12,6 +12,7 @@ import type { StoredImage } from './images'
 import { getImage, libraryStore } from './library'
 import { getModel, modelFilePath, modelPreviewPath } from './models'
 import { assetStore } from './projects'
+import { videoPath } from './sprites'
 import { isNotFound } from './storage'
 import { thumbnail } from './thumbs'
 import { isSafeId } from './validate'
@@ -130,6 +131,21 @@ async function handleModel(url: URL): Promise<Response> {
   return reply(404, 'Not found')
 }
 
+/** gp://sprite/<项目 id>/<角色 id>/<动作 id>：序列帧动作的源视频 */
+async function handleSprite(url: URL): Promise<Response> {
+  let parts: string[]
+  try {
+    parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return reply(400, 'Bad request')
+  }
+  if (parts.length !== 3 || !parts.every(isSafeId)) return reply(404, 'Not found')
+  const path = await videoPath(parts[0], parts[1], parts[2])
+  const buf = path ? await readIfFile(path) : null
+  if (!buf || !path) return reply(404, 'Not found')
+  return image(buf, path.endsWith('.mov') ? 'video/quicktime' : 'video/mp4')
+}
+
 function image(buf: Buffer, mime: string): Response {
   return new Response(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength), {
     status: 200,
@@ -149,6 +165,7 @@ async function handle(request: Request): Promise<Response> {
     return reply(400, 'Bad request')
   }
   if (url.hostname === 'model') return handleModel(url)
+  if (url.hostname === 'sprite') return handleSprite(url)
   const ref = parseRef(url)
   if (!ref) return reply(404, 'Not found')
   const found = await resolveImage(ref)

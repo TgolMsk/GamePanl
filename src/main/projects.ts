@@ -82,6 +82,21 @@ async function countNotes(projectId: ID): Promise<number> {
   }
 }
 
+/** 序列帧角色数（projects/<id>/sprites/<角色 id>/character.json） */
+async function countSprites(projectId: ID): Promise<number> {
+  const root = `${paths.project(projectId)}/sprites`
+  try {
+    let n = 0
+    for (const name of await fs.readdir(root)) {
+      if (isSafeId(name) && (await exists(`${root}/${name}/character.json`))) n++
+    }
+    return n
+  } catch (err) {
+    if (isNotFound(err)) return 0
+    throw err
+  }
+}
+
 /** 项目列表，按创建时间排 */
 export async function listProjects(): Promise<ProjectSummary[]> {
   let names: string[]
@@ -109,6 +124,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
         noteCount: await countNotes(name),
         assetCount: assets.length,
         modelCount: (await listProjectModels(name)).length,
+        spriteCount: await countSprites(name),
         coverAssetId: p.coverAssetId ?? null,
         updatedAt: p.updatedAt
       },

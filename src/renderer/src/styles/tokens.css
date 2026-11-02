@@ -20,6 +20,7 @@
   --sel: rgba(0, 0, 0, 0.075);
   --ok: #248a3d;
   --danger: #d70015;
+  --warn: #c55f00;
   --chk1: #ffffff;
   --chk2: #ececef;
   --scrim: rgba(0, 0, 0, 0.28);
@@ -57,6 +58,7 @@
     --sel: rgba(255, 255, 255, 0.1);
     --ok: #30d158;
     --danger: #ff453a;
+    --warn: #ff9f0a;
     --chk1: #2a2a2d;
     --chk2: #333336;
     --scrim: rgba(0, 0, 0, 0.45);

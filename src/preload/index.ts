@@ -59,6 +59,21 @@ const api: GpApi = {
     addModels: call('projects:addModels') as GpApi['projects']['addModels'],
     removeModels: call('projects:removeModels') as GpApi['projects']['removeModels']
   },
+  sprites: {
+    list: call('sprites:list') as GpApi['sprites']['list'],
+    create: call('sprites:create') as GpApi['sprites']['create'],
+    addActions: call('sprites:addActions') as GpApi['sprites']['addActions'],
+    update: call('sprites:update') as GpApi['sprites']['update'],
+    updateAction: call('sprites:updateAction') as GpApi['sprites']['updateAction'],
+    applyParamsToAll: call('sprites:applyParamsToAll') as GpApi['sprites']['applyParamsToAll'],
+    reorderActions: call('sprites:reorderActions') as GpApi['sprites']['reorderActions'],
+    deleteAction: call('sprites:deleteAction') as GpApi['sprites']['deleteAction'],
+    remove: call('sprites:remove') as GpApi['sprites']['remove'],
+    export: call('sprites:export') as GpApi['sprites']['export'],
+    detectGodot: call('sprites:detectGodot') as GpApi['sprites']['detectGodot'],
+    reveal: call('sprites:reveal') as GpApi['sprites']['reveal'],
+    copyImage: call('sprites:copyImage') as GpApi['sprites']['copyImage']
+  },
   clipboard: {
     copyImage: call('clipboard:copyImage') as GpApi['clipboard']['copyImage'],
     copyText: call('clipboard:copyText') as GpApi['clipboard']['copyText']

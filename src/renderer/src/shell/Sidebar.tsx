@@ -130,6 +130,14 @@ export function Sidebar(): React.JSX.Element {
                   on={isOn(p.id, 'models')}
                   onClick={() => goProject(p.id, 'models')}
                 />
+                <NavItem
+                  sub
+                  icon="film"
+                  label="序列帧"
+                  count={p.spriteCount}
+                  on={isOn(p.id, 'sprites')}
+                  onClick={() => goProject(p.id, 'sprites')}
+                />
               </>
             )}
           </Fragment>

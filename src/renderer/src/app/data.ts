@@ -2,6 +2,7 @@
 // 主进程广播 onDataChanged 后按 kind 自动重新读取（正在显示的立即读，没在显示的等下次用到再读）。
 import { useCallback, useEffect } from 'react'
 import { create } from 'zustand'
+import type { SpriteCharacter } from '@shared/sprites'
 import type {
   DataChange,
   ID,
@@ -131,7 +132,8 @@ const KEY = {
   project: (id: ID) => `project:${id}`,
   notes: (id: ID) => `notes:${id}`,
   assets: (id: ID) => `assets:${id}`,
-  projectModels: (id: ID) => `models:${id}`
+  projectModels: (id: ID) => `models:${id}`,
+  sprites: (id: ID) => `sprites:${id}`
 }
 
 /** 全局库 · 图片素材 */
@@ -179,6 +181,11 @@ export function useAssets(projectId: ID): Resource<ProjectAsset[]> {
   return useResource(KEY.assets(projectId), () => window.gp.projects.listAssets(projectId), NONE)
 }
 
+/** 一个项目的序列帧角色 */
+export function useSpriteCharacters(projectId: ID): Resource<SpriteCharacter[]> {
+  return useResource(KEY.sprites(projectId), () => window.gp.sprites.list(projectId), NONE)
+}
+
 function keysFor(change: DataChange): string[] {
   switch (change.kind) {
     case 'library-images':
@@ -200,6 +207,8 @@ function keysFor(change: DataChange): string[] {
       return [KEY.assets(change.projectId), KEY.projects]
     case 'models':
       return [KEY.projectModels(change.projectId), KEY.projects]
+    case 'sprites':
+      return [KEY.sprites(change.projectId)]
   }
 }
 

@@ -3,7 +3,7 @@ import { create } from 'zustand'
 import type { ID } from '@shared/types'
 
 export type LibraryTab = 'images' | 'models' | 'prompts' | 'styles'
-export type ProjectTab = 'config' | 'notes' | 'assets' | 'models'
+export type ProjectTab = 'config' | 'notes' | 'assets' | 'models' | 'sprites'
 
 export type Route =
   | { view: 'library'; tab: LibraryTab }
@@ -34,7 +34,7 @@ export const HOME_ROUTE: Route = { view: 'library', tab: 'images' }
 
 const STORAGE_KEY = 'gamepanl.nav'
 const LIBRARY_TABS: readonly string[] = ['images', 'models', 'prompts', 'styles']
-const PROJECT_TABS: readonly string[] = ['config', 'notes', 'assets', 'models']
+const PROJECT_TABS: readonly string[] = ['config', 'notes', 'assets', 'models', 'sprites']
 
 function parseRoute(value: unknown): Route | null {
   if (!value || typeof value !== 'object') return null

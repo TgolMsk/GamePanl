@@ -9,6 +9,7 @@ import ProjectAssetsScreen from './screens/ProjectAssets'
 import ProjectConfigScreen from './screens/ProjectConfig'
 import ProjectModelsScreen from './screens/ProjectModels'
 import ProjectNotesScreen from './screens/ProjectNotes'
+import ProjectSpritesScreen from './screens/ProjectSprites'
 import { DropOverlay } from './shell/DropOverlay'
 import { NewProjectSheet, openNewProject } from './shell/NewProjectSheet'
 import { Sidebar } from './shell/Sidebar'
@@ -93,6 +94,8 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
           return <ProjectAssetsScreen key={route.projectId} projectId={route.projectId} />
         case 'models':
           return <ProjectModelsScreen key={route.projectId} projectId={route.projectId} />
+        case 'sprites':
+          return <ProjectSpritesScreen key={route.projectId} projectId={route.projectId} />
       }
   }
 }
