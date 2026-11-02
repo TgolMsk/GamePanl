@@ -1,4 +1,4 @@
-// 从访达拖入图片、⌘V 粘贴图片。
+// 从访达拖入图片（或模型等其他文件）、⌘V 粘贴图片。
 // 只有「当前最上层」的界面会收到：没有打开 sheet 时是页面，打开了 sheet 时是那个 sheet 里的组件。
 import { useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
@@ -26,6 +26,8 @@ interface DropTarget {
   depth: number
   label: string
   hint: string
+  accept: (file: File) => boolean
+  reject: string
   onPaths: (paths: string[]) => void
 }
 
@@ -54,6 +56,10 @@ export interface FileDropOptions {
   hint?: string
   /** false 时不接收拖入 */
   enabled?: boolean
+  /** 收哪些文件，默认只收图片 */
+  accept?: (file: File) => boolean
+  /** 拖进来的全都不收时的提示，默认「只能添加图片…」 */
+  reject?: string
 }
 
 let nextId = 0
@@ -64,7 +70,11 @@ let nextId = 0
  * 在 sheet 里用时没有遮罩，用返回值（正在拖入）自己高亮拖入区。
  */
 export function useFileDrop(onPaths: (paths: string[]) => void, opts: FileDropOptions = {}): boolean {
-  const { label = '松手添加', hint = '原图会存进工作台', enabled = true } = opts
+  const { label = '松手添加', hint = '原图会存进工作台', enabled = true, reject = ONLY_IMAGES } = opts
+  const acceptRef = useRef(opts.accept ?? isImageFile)
+  useEffect(() => {
+    acceptRef.current = opts.accept ?? isImageFile
+  })
   const depth = useSheetDepth()
   const [id] = useState(() => ++nextId)
   const latest = useRef(onPaths)
@@ -73,10 +83,18 @@ export function useFileDrop(onPaths: (paths: string[]) => void, opts: FileDropOp
   })
   useEffect(() => {
     if (!enabled) return
-    const target: DropTarget = { id, depth, label, hint, onPaths: (paths) => latest.current(paths) }
+    const target: DropTarget = {
+      id,
+      depth,
+      label,
+      hint,
+      accept: (file) => acceptRef.current(file),
+      reject,
+      onPaths: (paths) => latest.current(paths)
+    }
     useDropStore.setState((s) => ({ targets: [...s.targets, target] }))
     return () => useDropStore.setState((s) => ({ targets: s.targets.filter((t) => t !== target) }))
-  }, [id, depth, label, hint, enabled])
+  }, [id, depth, label, hint, enabled, reject])
   const dragging = useDropStore((s) => s.dragging)
   const active = useActiveTarget()
   return dragging && active?.id === id
@@ -139,11 +157,11 @@ export function installFileDrop(): void {
     if (!target) return
     const files = Array.from(e.dataTransfer?.files ?? [])
     const paths = files
-      .filter(isImageFile)
+      .filter(target.accept)
       .map(pathOf)
       .filter((p) => p !== '')
     if (paths.length > 0) target.onPaths(paths)
-    else if (files.length > 0) hud.show(ONLY_IMAGES)
+    else if (files.length > 0) hud.show(target.reject)
   }
 
   document.addEventListener('dragstart', onDragStart)

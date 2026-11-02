@@ -9,11 +9,13 @@ import { join, resolve } from 'path'
 
 const SHOTS: Array<{ name: string; route: Record<string, string> }> = [
   { name: 'library-images', route: { view: 'library', tab: 'images' } },
+  { name: 'library-models', route: { view: 'library', tab: 'models' } },
   { name: 'library-prompts', route: { view: 'library', tab: 'prompts' } },
   { name: 'library-styles', route: { view: 'library', tab: 'styles' } },
   { name: 'project-config', route: { view: 'project', tab: 'config' } },
   { name: 'project-notes', route: { view: 'project', tab: 'notes' } },
-  { name: 'project-assets', route: { view: 'project', tab: 'assets' } }
+  { name: 'project-assets', route: { view: 'project', tab: 'assets' } },
+  { name: 'project-models', route: { view: 'project', tab: 'models' } }
 ]
 
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))

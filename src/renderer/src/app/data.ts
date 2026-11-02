@@ -6,9 +6,11 @@ import type {
   DataChange,
   ID,
   LibImage,
+  LibModel,
   Note,
   Project,
   ProjectAsset,
+  ProjectModel,
   ProjectSummary,
   Prompt,
   Style
@@ -124,10 +126,12 @@ const KEY = {
   libImages: 'library:images',
   prompts: 'library:prompts',
   styles: 'library:styles',
+  models: 'library:models',
   projects: 'projects',
   project: (id: ID) => `project:${id}`,
   notes: (id: ID) => `notes:${id}`,
-  assets: (id: ID) => `assets:${id}`
+  assets: (id: ID) => `assets:${id}`,
+  projectModels: (id: ID) => `models:${id}`
 }
 
 /** 全局库 · 图片素材 */
@@ -145,6 +149,11 @@ export function useStyles(): Resource<Style[]> {
   return useResource(KEY.styles, () => window.gp.library.listStyles(), NONE)
 }
 
+/** 全局库 · 3D 模型 */
+export function useLibModels(): Resource<LibModel[]> {
+  return useResource(KEY.models, () => window.gp.library.listModels(), NONE)
+}
+
 /** 项目列表（含笔记数、资料数） */
 export function useProjects(): Resource<ProjectSummary[]> {
   return useResource(KEY.projects, () => window.gp.projects.list(), NONE)
@@ -160,6 +169,11 @@ export function useNotes(projectId: ID): Resource<Note[]> {
   return useResource(KEY.notes(projectId), () => window.gp.projects.listNotes(projectId), NONE)
 }
 
+/** 一个项目引用的全局库模型 */
+export function useProjectModels(projectId: ID): Resource<ProjectModel[]> {
+  return useResource(KEY.projectModels(projectId), () => window.gp.projects.listModels(projectId), NONE)
+}
+
 /** 一个项目的全部资料图片 */
 export function useAssets(projectId: ID): Resource<ProjectAsset[]> {
   return useResource(KEY.assets(projectId), () => window.gp.projects.listAssets(projectId), NONE)
@@ -173,6 +187,8 @@ function keysFor(change: DataChange): string[] {
       return [KEY.prompts]
     case 'library-styles':
       return [KEY.styles]
+    case 'library-models':
+      return [KEY.models]
     case 'projects':
       return [KEY.projects]
     // 项目列表里有名称、封面和笔记数、资料数，这几类变化也要刷新列表
@@ -182,6 +198,8 @@ function keysFor(change: DataChange): string[] {
       return [KEY.notes(change.projectId), KEY.projects]
     case 'assets':
       return [KEY.assets(change.projectId), KEY.projects]
+    case 'models':
+      return [KEY.projectModels(change.projectId), KEY.projects]
   }
 }
 

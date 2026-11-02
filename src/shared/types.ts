@@ -27,6 +27,59 @@ export interface LibImage {
   addedAt: ISODate
 }
 
+export const MODEL_CATEGORIES = ['角色', '怪物', '道具', '场景', '载具', '其他'] as const
+export type ModelCategory = (typeof MODEL_CATEGORIES)[number]
+
+export type ModelFormat = 'GLB' | 'glTF'
+
+/** 模型里的一个动作 */
+export interface ModelAnimation {
+  /** 显示名（asset.json 的 name，没有时同 clip） */
+  name: string
+  /** 模型文件里的动作名（如 Idle_loop） */
+  clip: string
+  seconds: number
+  loop: boolean
+}
+
+/**
+ * 全局库里的一个 3D 模型。整个资产文件夹原样存在 library/models/<id>/，
+ * id 尽量取资产自己的名字（如 dark_dragon），拖出、拷贝出去的文件夹就叫这个名字。
+ */
+export interface LibModel {
+  id: ID
+  name: string
+  /** 模型主文件在文件夹里的相对路径，如 dark_dragon.glb */
+  file: string
+  /** 预览图在文件夹里的相对路径；没有时为 null，由界面渲染一张存到 library/model-previews/<id>.png */
+  preview: string | null
+  /** preview 为 null 时，是否已经渲染过缩略图 */
+  rendered: boolean
+  category: ModelCategory
+  tags: string[]
+  /** asset.json 的 version，没有为 '' */
+  version: string
+  format: ModelFormat
+  /** 静止姿势包围盒 [宽 x, 高 y, 长 z]（米）；读不出为 null */
+  size: [number, number, number] | null
+  triangles: number
+  vertices: number
+  bones: number
+  animations: ModelAnimation[]
+  /** 挂点名（asset.json 的 sockets） */
+  sockets: string[]
+  /** 文件夹里有没有 asset.json */
+  hasAssetJson: boolean
+  /** 来源说明（asset.json 的 source.how_made 等），没有为 '' */
+  source: string
+  /** 导入时的原路径 */
+  importedFrom: string
+  /** 文件夹总大小 */
+  bytes: number
+  fileCount: number
+  addedAt: ISODate
+}
+
 export const PROMPT_CATEGORIES = ['风格', '用途', '约束', '构图', '负面词'] as const
 export type PromptCategory = (typeof PROMPT_CATEGORIES)[number]
 
@@ -131,6 +184,7 @@ export interface ProjectSummary {
   name: string
   noteCount: number
   assetCount: number
+  modelCount: number
   coverAssetId: ID | null
   updatedAt: ISODate
 }
@@ -176,6 +230,23 @@ export interface ProjectAsset {
   addedAt: ISODate
   /** 从全局库添加时记录来源 */
   sourceLibraryId: ID | null
+}
+
+/** 项目资料里的一个 3D 模型：只存对全局库模型的引用，存在 projects/<id>/models.json */
+export interface ProjectModel {
+  /** 全局库模型 id */
+  modelId: ID
+  addedAt: ISODate
+}
+
+/** 导入模型的结果 */
+export interface ModelImportResult {
+  /** 新加入的 */
+  added: LibModel[]
+  /** 内容相同、已经在库里的 */
+  existing: LibModel[]
+  /** 没能导入的：路径和原因 */
+  skipped: Array<{ path: string; reason: string }>
 }
 
 export interface AppInfo {
@@ -251,7 +322,9 @@ export type DataChange =
   | { kind: 'library-images' }
   | { kind: 'library-prompts' }
   | { kind: 'library-styles' }
+  | { kind: 'library-models' }
   | { kind: 'projects' }
   | { kind: 'project'; projectId: ID }
   | { kind: 'notes'; projectId: ID }
   | { kind: 'assets'; projectId: ID }
+  | { kind: 'models'; projectId: ID }

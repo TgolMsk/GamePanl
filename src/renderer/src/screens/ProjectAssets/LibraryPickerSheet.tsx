@@ -11,6 +11,10 @@ export interface LibraryPickerSheetProps {
   onClose: () => void
   /** 点「添加」：返回 true 表示已经处理完（sheet 由调用方关掉） */
   onAdd: (libraryIds: ID[]) => Promise<boolean>
+  /** 不用在项目资料时换掉标题、副标题和按钮文字 */
+  title?: string
+  subtitle?: string
+  confirmLabel?: (n: number) => string
 }
 
 /** 从全局库添加：全局库图片网格，可多选，「添加 N 张」 */
@@ -28,7 +32,7 @@ function matches(img: LibImage, q: string): boolean {
   )
 }
 
-function Picker({ projectName, onClose, onAdd }: LibraryPickerSheetProps): React.JSX.Element {
+function Picker({ projectName, onClose, onAdd, title, subtitle, confirmLabel }: LibraryPickerSheetProps): React.JSX.Element {
   const images = useLibImages()
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState<ID[]>([])
@@ -65,8 +69,8 @@ function Picker({ projectName, onClose, onAdd }: LibraryPickerSheetProps): React
     <Sheet
       open
       onClose={onClose}
-      title="从全局库添加"
-      subtitle={`选择要加入「${projectName}」资料的图片`}
+      title={title ?? '从全局库添加'}
+      subtitle={subtitle ?? `选择要加入「${projectName}」资料的图片`}
       width={800}
       height={633}
       accessory={<SearchField value={q} onChange={setQ} placeholder="搜索图片素材" autoFocus />}
@@ -78,7 +82,7 @@ function Picker({ projectName, onClose, onAdd }: LibraryPickerSheetProps): React
           <span className="grow" />
           <Button onClick={onClose}>取消</Button>
           <Button variant="primary" disabled={n === 0} onClick={() => void add()}>
-            {n > 0 ? `添加 ${n} 张` : '添加'}
+            {confirmLabel ? confirmLabel(n) : n > 0 ? `添加 ${n} 张` : '添加'}
           </Button>
         </>
       }

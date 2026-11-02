@@ -21,6 +21,10 @@ export const paths = {
   libHashes: () => join(dataRoot(), 'library', 'hashes.json'),
   prompts: () => join(dataRoot(), 'library', 'prompts.json'),
   styles: () => join(dataRoot(), 'library', 'styles.json'),
+  libModelsDir: () => join(dataRoot(), 'library', 'models'),
+  libModels: () => join(dataRoot(), 'library', 'models.json'),
+  libModelHashes: () => join(dataRoot(), 'library', 'model-hashes.json'),
+  libModelPreviews: () => join(dataRoot(), 'library', 'model-previews'),
   projects: () => join(dataRoot(), 'projects'),
   project: (id: string) => join(dataRoot(), 'projects', asId(id, '项目 id')),
   projectFile: (id: string) => join(paths.project(id), 'project.json'),
@@ -29,14 +33,16 @@ export const paths = {
   assetsDir: (id: string) => join(paths.project(id), 'assets'),
   assets: (id: string) => join(paths.project(id), 'assets.json'),
   assetHashes: (id: string) => join(paths.project(id), 'hashes.json'),
+  projectModels: (id: string) => join(paths.project(id), 'models.json'),
   thumbs: () => join(dataRoot(), '.cache', 'thumbs')
 }
 
 export async function initStorage(): Promise<void> {
   await fs.mkdir(paths.libImagesDir(), { recursive: true })
+  await fs.mkdir(paths.libModelsDir(), { recursive: true })
   await fs.mkdir(paths.projects(), { recursive: true })
   await fs.mkdir(paths.thumbs(), { recursive: true })
-  for (const file of [paths.libImages(), paths.prompts(), paths.styles()]) {
+  for (const file of [paths.libImages(), paths.prompts(), paths.styles(), paths.libModels()]) {
     if (!(await exists(file))) await writeJson(file, [])
   }
 }

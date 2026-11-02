@@ -2,12 +2,15 @@
 //   gp://image/library/<id>                 全局库原图
 //   gp://image/project/<projectId>/<id>     项目资料原图
 //   ?thumb=N                                缩略图，最长边不超过 N 像素
+//   gp://model/<id>/file/<相对路径>          全局库模型文件夹里的文件（.glb、.gltf、.bin、贴图）
+//   gp://model/<id>/preview                 模型预览图（文件夹自带的或界面渲染的），也支持 ?thumb=N
 import { protocol } from 'electron'
 import { promises as fs } from 'fs'
 import type { ImageRef } from '@shared/types'
 import { findInStore, mimeOf, storedPath } from './images'
 import type { StoredImage } from './images'
 import { getImage, libraryStore } from './library'
+import { getModel, modelFilePath, modelPreviewPath } from './models'
 import { assetStore } from './projects'
 import { isNotFound } from './storage'
 import { thumbnail } from './thumbs'
@@ -66,6 +69,67 @@ function reply(status: number, text: string): Response {
   return new Response(text, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }
 
+const MODEL_MIME: Record<string, string> = {
+  glb: 'model/gltf-binary',
+  gltf: 'model/gltf+json',
+  bin: 'application/octet-stream',
+  ktx2: 'image/ktx2',
+  json: 'application/json'
+}
+
+function fileMime(path: string): string {
+  const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
+  return MODEL_MIME[ext] ?? mimeOf(path)
+}
+
+async function readIfFile(path: string): Promise<Buffer | null> {
+  try {
+    if (!(await fs.stat(path)).isFile()) return null
+    return await fs.readFile(path)
+  } catch (err) {
+    if (isNotFound(err)) return null
+    throw err
+  }
+}
+
+/** gp://model/... */
+async function handleModel(url: URL): Promise<Response> {
+  let parts: string[]
+  try {
+    parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return reply(400, 'Bad request')
+  }
+  const [id, kind, ...rest] = parts
+  if (!isSafeId(id)) return reply(404, 'Not found')
+  const model = await getModel(id)
+  if (!model) return reply(404, 'Not found')
+  if (kind === 'file' && rest.length > 0) {
+    let path: string
+    try {
+      path = modelFilePath(id, rest.join('/'))
+    } catch {
+      return reply(404, 'Not found')
+    }
+    const buf = await readIfFile(path)
+    return buf ? image(buf, fileMime(path)) : reply(404, 'Not found')
+  }
+  if (kind === 'preview' && rest.length === 0) {
+    const path = await modelPreviewPath(model)
+    if (!path) return reply(404, 'Not found')
+    const thumbParam = url.searchParams.get('thumb')
+    if (thumbParam !== null) {
+      const size = Number(thumbParam)
+      if (!Number.isInteger(size) || size <= 0) return reply(400, 'Bad thumb size')
+      const n = Math.min(Math.max(size, 16), 4096)
+      const t = await thumbnail(path, `mdl.${id}.`, n, false)
+      if (t) return image(t.buf, t.mime)
+    }
+    return image(await fs.readFile(path), mimeOf(path))
+  }
+  return reply(404, 'Not found')
+}
+
 function image(buf: Buffer, mime: string): Response {
   return new Response(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength), {
     status: 200,
@@ -84,6 +148,7 @@ async function handle(request: Request): Promise<Response> {
   } catch {
     return reply(400, 'Bad request')
   }
+  if (url.hostname === 'model') return handleModel(url)
   const ref = parseRef(url)
   if (!ref) return reply(404, 'Not found')
   const found = await resolveImage(ref)

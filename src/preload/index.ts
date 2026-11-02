@@ -12,7 +12,8 @@ const api: GpApi = {
   app: {
     getInfo: call('app:getInfo') as GpApi['app']['getInfo'],
     revealDataRoot: call('app:revealDataRoot') as GpApi['app']['revealDataRoot'],
-    importSample: call('app:importSample') as GpApi['app']['importSample']
+    importSample: call('app:importSample') as GpApi['app']['importSample'],
+    pickFolder: call('app:pickFolder') as GpApi['app']['pickFolder']
   },
   library: {
     listImages: call('library:listImages') as GpApi['library']['listImages'],
@@ -29,7 +30,13 @@ const api: GpApi = {
     listStyles: call('library:listStyles') as GpApi['library']['listStyles'],
     createStyle: call('library:createStyle') as GpApi['library']['createStyle'],
     updateStyle: call('library:updateStyle') as GpApi['library']['updateStyle'],
-    deleteStyle: call('library:deleteStyle') as GpApi['library']['deleteStyle']
+    deleteStyle: call('library:deleteStyle') as GpApi['library']['deleteStyle'],
+    listModels: call('library:listModels') as GpApi['library']['listModels'],
+    importModels: call('library:importModels') as GpApi['library']['importModels'],
+    updateModel: call('library:updateModel') as GpApi['library']['updateModel'],
+    deleteModel: call('library:deleteModel') as GpApi['library']['deleteModel'],
+    setModelPreview: call('library:setModelPreview') as GpApi['library']['setModelPreview'],
+    copyModelTo: call('library:copyModelTo') as GpApi['library']['copyModelTo']
   },
   projects: {
     list: call('projects:list') as GpApi['projects']['list'],
@@ -47,7 +54,10 @@ const api: GpApi = {
     importAssetFromClipboard: call('projects:importAssetFromClipboard') as GpApi['projects']['importAssetFromClipboard'],
     addAssetsFromLibrary: call('projects:addAssetsFromLibrary') as GpApi['projects']['addAssetsFromLibrary'],
     updateAsset: call('projects:updateAsset') as GpApi['projects']['updateAsset'],
-    deleteAsset: call('projects:deleteAsset') as GpApi['projects']['deleteAsset']
+    deleteAsset: call('projects:deleteAsset') as GpApi['projects']['deleteAsset'],
+    listModels: call('projects:listModels') as GpApi['projects']['listModels'],
+    addModels: call('projects:addModels') as GpApi['projects']['addModels'],
+    removeModels: call('projects:removeModels') as GpApi['projects']['removeModels']
   },
   clipboard: {
     copyImage: call('clipboard:copyImage') as GpApi['clipboard']['copyImage'],
@@ -56,7 +66,9 @@ const api: GpApi = {
   shell: {
     revealImage: call('shell:revealImage') as GpApi['shell']['revealImage'],
     openImage: call('shell:openImage') as GpApi['shell']['openImage'],
-    dragImage: call('shell:dragImage') as GpApi['shell']['dragImage']
+    dragImage: call('shell:dragImage') as GpApi['shell']['dragImage'],
+    revealModel: call('shell:revealModel') as GpApi['shell']['revealModel'],
+    dragModel: call('shell:dragModel') as GpApi['shell']['dragModel']
   },
   update: {
     getState: call('update:getState') as GpApi['update']['getState'],

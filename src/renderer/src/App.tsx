@@ -7,6 +7,7 @@ import { useUpdateSync } from './app/update'
 import LibraryScreen from './screens/Library'
 import ProjectAssetsScreen from './screens/ProjectAssets'
 import ProjectConfigScreen from './screens/ProjectConfig'
+import ProjectModelsScreen from './screens/ProjectModels'
 import ProjectNotesScreen from './screens/ProjectNotes'
 import { DropOverlay } from './shell/DropOverlay'
 import { NewProjectSheet, openNewProject } from './shell/NewProjectSheet'
@@ -90,6 +91,8 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
           return <ProjectNotesScreen key={route.projectId} projectId={route.projectId} />
         case 'assets':
           return <ProjectAssetsScreen key={route.projectId} projectId={route.projectId} />
+        case 'models':
+          return <ProjectModelsScreen key={route.projectId} projectId={route.projectId} />
       }
   }
 }

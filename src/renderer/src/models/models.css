@@ -1,0 +1,335 @@
+/* 3D 模型：卡片、检查器、查看器、从全局库添加（检查器的基础样式沿用 ProjectAssets/assets.css 的 as-*） */
+
+/* ---------- 网格与卡片 ---------- */
+.mdl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px 16px;
+  padding: 24px;
+}
+.mdl-card .hit {
+  cursor: default;
+}
+.mdl-frame {
+  background: radial-gradient(120% 90% at 50% 30%, var(--card) 0%, var(--fill2) 100%) !important;
+}
+.mdl-frame > img {
+  object-fit: contain;
+}
+.mdl-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--img-pill);
+  color: var(--on-dark);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* ---------- 检查器 ---------- */
+.mdl-prev {
+  position: relative;
+  height: 180px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 30%, var(--card) 0%, var(--fill2) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  cursor: pointer;
+}
+.mdl-prev:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.mdl-prev > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.mdl-prev-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  background: var(--img-pill);
+  color: var(--on-dark);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.mdl-prev:hover .mdl-prev-btn,
+.mdl-prev:focus-visible .mdl-prev-btn {
+  opacity: 1;
+}
+.mdl-ttl {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tx);
+  padding: 4px 6px 0;
+  overflow-wrap: anywhere;
+}
+.mdl-sub {
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--tx2);
+  overflow-wrap: anywhere;
+}
+.mdl-n {
+  font-weight: 400;
+  color: var(--tx2);
+}
+.mdl-anim:disabled {
+  opacity: 0.5;
+}
+.mdl-anim.on {
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+.mdl-loop {
+  flex: none;
+  height: 17px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+  color: var(--acc);
+  font-size: 10.5px;
+  line-height: 17px;
+}
+.mdl-sec {
+  font-size: 12px;
+  color: var(--tx2) !important;
+  font-variant-numeric: tabular-nums;
+}
+.mdl-src {
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--tx2);
+  user-select: text;
+}
+.mdl-src .path {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--tx3);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 3D 查看器 ---------- */
+.mv-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: radial-gradient(120% 100% at 50% 25%, var(--card) 0%, var(--fill2) 70%, var(--bg2) 100%);
+}
+.mv-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  outline: none;
+}
+.mv-canvas:active {
+  cursor: grabbing;
+}
+.mv-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--tx2);
+  text-align: center;
+  padding: 24px;
+  pointer-events: none;
+}
+.mv-bar {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--win) 82%, transparent);
+  backdrop-filter: blur(12px);
+  border: 0.5px solid var(--sep);
+}
+.mv-bar select {
+  min-width: 150px;
+}
+.mv-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--tx3);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.mv-info {
+  flex: none;
+  width: 280px;
+}
+
+/* ---------- 从全局库添加 ---------- */
+.mdl-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 12px;
+}
+.mdl-pk {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.mdl-pk .frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-img);
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 30%, var(--card) 0%, var(--fill2) 100%);
+}
+.mdl-pk .frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.mdl-pk.on .frame {
+  box-shadow: 0 0 0 3px var(--acc);
+}
+.mdl-pk:focus-visible .frame {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.mdl-pk.added {
+  opacity: 0.55;
+}
+.mdl-pk .cap {
+  font-size: 12px;
+}
+.mdl-pk.on .as-tick {
+  background: var(--acc);
+}
+
+/* ---------- 用 Claude Code 生成 ---------- */
+.gen-body {
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+}
+.gen-form {
+  width: 430px;
+  flex: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+.gen-form > * {
+  flex: none;
+}
+.gen-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.gen-refs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gen-refs img {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--fill2);
+}
+.gen-root {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.gen-root .path {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--tx2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gen-out {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.gen-pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border-radius: var(--r-img);
+  border: 0.5px solid var(--sep);
+  background: var(--card);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--tx);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.gen-tip {
+  margin-top: 10px;
+  line-height: 1.6;
+}
+.gen-tip code {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--fill2);
+  overflow-wrap: anywhere;
+}

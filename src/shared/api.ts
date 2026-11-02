@@ -8,10 +8,13 @@ import type {
   ID,
   ImageRef,
   LibImage,
+  LibModel,
   MenuItemSpec,
+  ModelImportResult,
   Note,
   Project,
   ProjectAsset,
+  ProjectModel,
   ProjectSummary,
   Prompt,
   Style,
@@ -19,6 +22,7 @@ import type {
 } from './types'
 
 export type LibImagePatch = Partial<Pick<LibImage, 'name' | 'category' | 'tags'>>
+export type LibModelPatch = Partial<Pick<LibModel, 'name' | 'category' | 'tags'>>
 export type PromptInput = Pick<Prompt, 'title' | 'body' | 'category'>
 export type PromptPatch = Partial<PromptInput>
 export type StyleInput = Pick<Style, 'name' | 'desc' | 'palette' | 'prompt' | 'sampleImageId'>
@@ -34,6 +38,8 @@ export interface GpApi {
     revealDataRoot(): Promise<void>
     /** 把内置的示例内容（图片、提示词、风格、示例项目「雾港」）导入进来；已存在的不重复导入 */
     importSample(): Promise<void>
+    /** 弹出系统文件夹选择框；取消返回 null */
+    pickFolder(title: string, defaultPath?: string): Promise<string | null>
   }
 
   library: {
@@ -59,6 +65,20 @@ export interface GpApi {
     createStyle(input: StyleInput): Promise<Style>
     updateStyle(id: ID, patch: StylePatch): Promise<Style>
     deleteStyle(id: ID): Promise<void>
+
+    listModels(): Promise<LibModel[]>
+    /**
+     * 导入 3D 模型：.glb / .gltf 文件，或资产文件夹（有 asset.json 的 export/、资产根目录、整个资产库都行）。
+     * 不传 paths 时弹出系统选择框。按模型文件内容去重。
+     */
+    importModels(paths?: string[]): Promise<ModelImportResult>
+    updateModel(id: ID, patch: LibModelPatch): Promise<LibModel>
+    /** 整个模型文件夹移到系统废纸篓，并从各项目资料里去掉 */
+    deleteModel(id: ID): Promise<void>
+    /** 保存界面渲染的缩略图（PNG 数据） */
+    setModelPreview(id: ID, png: Uint8Array): Promise<LibModel>
+    /** 弹出文件夹选择框，把模型文件夹拷贝进去；取消返回 null，否则返回拷贝出来的文件夹路径 */
+    copyModelTo(id: ID): Promise<string | null>
   }
 
   projects: {
@@ -84,6 +104,13 @@ export interface GpApi {
     addAssetsFromLibrary(projectId: ID, libraryImageIds: ID[]): Promise<ProjectAsset[]>
     updateAsset(projectId: ID, id: ID, patch: AssetPatch): Promise<ProjectAsset>
     deleteAsset(projectId: ID, id: ID): Promise<void>
+
+    /** 本项目引用的全局库模型（新加的在前） */
+    listModels(projectId: ID): Promise<ProjectModel[]>
+    /** 引用全局库模型（不复制文件）；返回新加的 */
+    addModels(projectId: ID, modelIds: ID[]): Promise<ProjectModel[]>
+    /** 去掉引用（全局库里的模型不动） */
+    removeModels(projectId: ID, modelIds: ID[]): Promise<void>
   }
 
   clipboard: {
@@ -99,6 +126,10 @@ export interface GpApi {
     openImage(ref: ImageRef): Promise<void>
     /** 开始一次系统原生拖拽：把原图文件拖到访达、ChatGPT、PS 等任何能接收文件的地方。在 dragstart 里 preventDefault 后调用 */
     dragImage(ref: ImageRef): Promise<void>
+    /** 在访达中显示模型文件夹（选中里面的模型文件） */
+    revealModel(id: ID): Promise<void>
+    /** 原生拖拽整个模型文件夹（拖到访达、游戏项目里就是拷贝一份）。在 dragstart 里 preventDefault 后调用 */
+    dragModel(id: ID): Promise<void>
   }
 
   /** 在线更新：到 GitHub Releases 按版本号检测，安装包下载到「下载」文件夹后由用户打开安装 */
@@ -138,6 +169,22 @@ export function imageUrl(ref: ImageRef, thumb?: number): string {
       ? `gp://image/library/${encodeURIComponent(ref.id)}`
       : `gp://image/project/${encodeURIComponent(ref.projectId)}/${encodeURIComponent(ref.id)}`
   return thumb ? `${base}?thumb=${thumb}` : base
+}
+
+/**
+ * 模型地址：gp://model/<id>/file/<文件夹里的相对路径>；预览图 gp://model/<id>/preview（thumb 同上）。
+ * v 用来在缩略图重新渲染后让界面换掉缓存。
+ */
+export function modelFileUrl(id: ID, file: string): string {
+  return `gp://model/${encodeURIComponent(id)}/file/${file.split('/').map(encodeURIComponent).join('/')}`
+}
+
+export function modelPreviewUrl(model: { id: ID; preview: string | null; rendered: boolean }, thumb?: number): string {
+  const q = new URLSearchParams()
+  if (thumb) q.set('thumb', String(thumb))
+  if (model.preview === null) q.set('v', model.rendered ? '1' : '0')
+  const qs = q.toString()
+  return `gp://model/${encodeURIComponent(model.id)}/preview${qs ? `?${qs}` : ''}`
 }
 
 /** IPC 通道名：`<模块>:<方法>`，如 library:listImages。数据变化事件通道： */
