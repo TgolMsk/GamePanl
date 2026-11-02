@@ -1,4 +1,4 @@
-// 右栏：质检（点警告跳到对应帧）、输出设置（整个角色共用）、调色板、动作参数（默认折叠，可应用到全部动作）。
+// 右栏：质检（点警告跳到对应帧）、输出设置（整个角色共用；像素身高、颜色数在预览上方）、调色板、动作参数（默认折叠，可应用到全部动作）。
 import { useEffect, useState } from 'react'
 import type { CharacterOutput, ActionOutput } from '@renderer/sprites/engine'
 import type { QcItem } from '@renderer/sprites/core/qc'
@@ -125,7 +125,6 @@ export interface InspectorProps {
   action: SpriteAction | null
   output: CharacterOutput | null
   out: ActionOutput | undefined
-  projectHeight: number | null
   onSettings: (patch: Partial<SpriteSettings>) => void
   onParams: (patch: Partial<SpriteActionParams>) => void
   onApplyAll: () => void
@@ -158,17 +157,6 @@ export function Inspector(p: InspectorProps): React.JSX.Element {
 
       <Disclosure title="输出" sub={`${s.height} px 高 · ${s.colors} 色`} open={!!open.out} onToggle={() => toggle('out')}>
         <GroupList>
-          <GroupRow compact label="像素身高">
-            {p.projectHeight !== null && p.projectHeight !== s.height && (
-              <Button size="sm" variant="plain" onClick={() => p.onSettings({ height: p.projectHeight as number })}>
-                用项目尺寸 {p.projectHeight}
-              </Button>
-            )}
-            <NumberField value={s.height} min={8} max={512} onChange={(height) => p.onSettings({ height })} ariaLabel="像素身高" />
-          </GroupRow>
-          <GroupRow compact label="颜色数">
-            <NumberField value={s.colors} min={2} max={64} onChange={(colors) => p.onSettings({ colors })} ariaLabel="颜色数" />
-          </GroupRow>
           <GroupRow compact label="描边">
             <Segmented
               ariaLabel="描边"
@@ -225,10 +213,13 @@ export function Inspector(p: InspectorProps): React.JSX.Element {
       {output && (
         <div className="gsec">
           <div className="gh">
-            调色板 <span className="lbl" style={{ fontWeight: 400 }}>{output.palette.length} 色 · 全部动作共用</span>
+            调色板{' '}
+            <span className="lbl" style={{ fontWeight: 400 }}>
+              {(out?.palette ?? output.palette).length} 色 · {out?.ownPalette ? `「${action?.name}」单独一套` : '各动作共用'}
+            </span>
           </div>
           <div className="group sp-pal">
-            {output.palette.map((c, k) => (
+            {(out?.palette ?? output.palette).map((c, k) => (
               <span key={k} style={{ background: hex(c) }} title={hex(c)} />
             ))}
           </div>
@@ -240,12 +231,15 @@ export function Inspector(p: InspectorProps): React.JSX.Element {
   )
 }
 
+/** 「恢复默认」不动的参数：片段起止在时间轴上调，像素身高、颜色数在预览上方调 */
+const KEEP_ON_RESET: ReadonlyArray<keyof SpriteActionParams> = ['start', 'end', 'height', 'colors']
+
 function ActionParams(p: InspectorProps & { action: SpriteAction; open: boolean; onToggle: () => void }): React.JSX.Element {
   const a = p.action.params
   const an = p.out?.analysis
   const set = p.onParams
   const changed = (Object.keys(DEFAULT_SPRITE_PARAMS) as Array<keyof SpriteActionParams>).some(
-    (k) => k !== 'start' && k !== 'end' && JSON.stringify(a[k]) !== JSON.stringify(DEFAULT_SPRITE_PARAMS[k])
+    (k) => !KEEP_ON_RESET.includes(k) && JSON.stringify(a[k]) !== JSON.stringify(DEFAULT_SPRITE_PARAMS[k])
   )
   const wmText = a.watermark === 'auto' ? '自动' : a.watermark === 'none' ? '不屏蔽' : '手动框选'
   return (
@@ -356,12 +350,12 @@ function ActionParams(p: InspectorProps & { action: SpriteAction; open: boolean;
           size="sm"
           variant="plain"
           disabled={!changed}
-          onClick={() => set({ ...DEFAULT_SPRITE_PARAMS, start: a.start, end: a.end })}
+          onClick={() => set({ ...DEFAULT_SPRITE_PARAMS, start: a.start, end: a.end, height: a.height, colors: a.colors })}
         >
           恢复默认
         </Button>
       </div>
-      <div className="sp-note">「应用到全部动作」不改各动作的片段起止和循环 / 单次。</div>
+      <div className="sp-note">「应用到全部动作」不改各动作的片段起止、循环 / 单次和单独设的像素身高、颜色数。</div>
     </Disclosure>
   )
 }

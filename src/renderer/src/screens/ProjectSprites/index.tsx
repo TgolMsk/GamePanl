@@ -19,17 +19,18 @@ import { stripRgba } from '@renderer/sprites/pipeline'
 import { Button, ConfirmSheet, EmptyState, Icon, Sheet, TextField, Toolbar, cx } from '@renderer/ui'
 import type { SpriteImportResult } from '@shared/api'
 import type { ID } from '@shared/types'
-import type { SpriteAction, SpriteActionParams, SpriteCharacter, SpriteFrameEdit, SpriteSettings } from '@shared/sprites'
+import type { SpriteAction, SpriteActionParams, SpriteCharacter, SpriteFrameEdit, SpriteOwner, SpriteSettings } from '@shared/sprites'
 import { sheetCols } from './bundle'
 import { Inspector } from './Inspector'
+import { PixelBar } from './PixelBar'
 import { ExportSheet, WatermarkSheet } from './Sheets'
 import { FirstFrame, setEdit, Stage } from './Stage'
 
-const SEL_KEY = (projectId: ID): string => `gamepanl.sprites.sel.${projectId}`
+const SEL_KEY = (owner: SpriteOwner): string => `gamepanl.sprites.sel.${owner ?? 'library'}`
 
-function restoreSel(projectId: ID): { c: ID | null; a: ID | null } {
+function restoreSel(owner: SpriteOwner): { c: ID | null; a: ID | null } {
   try {
-    const v = JSON.parse(localStorage.getItem(SEL_KEY(projectId)) ?? 'null') as { c?: unknown; a?: unknown } | null
+    const v = JSON.parse(localStorage.getItem(SEL_KEY(owner)) ?? 'null') as { c?: unknown; a?: unknown } | null
     return { c: typeof v?.c === 'string' ? v.c : null, a: typeof v?.a === 'string' ? v.a : null }
   } catch {
     return { c: null, a: null }
@@ -56,18 +57,28 @@ function phaseText(run: CharacterRun | undefined, a: SpriteAction, out: ActionOu
   if (ph === 'error') return { text: run?.errors[a.id] ?? '处理失败', err: true }
   if (run?.running && ph && ph !== 'done') return { text: ph === 'loading' ? '读取视频…' : ph === 'analyzing' ? '分析中…' : '出图中…' }
   if (!out) return { text: run?.running ? '排队中…' : '选中后处理' }
-  return { text: `${out.analysis.kind === 'loop' ? '循环' : '单次'} · ${out.frames.length} 帧 · ${out.frameWidth}×${out.frameHeight}` }
+  const own = a.params.height !== null || a.params.colors !== null ? ' · 单独像素' : ''
+  return { text: `${out.analysis.kind === 'loop' ? '循环' : '单次'} · ${out.frames.length} 帧 · ${out.frameWidth}×${out.frameHeight}${own}` }
+}
+
+/** 项目 · 序列帧 */
+export default function ProjectSpritesScreen({ projectId }: { projectId: string }): React.JSX.Element {
+  const project = useProject(projectId)
+  return <SpritesScreen owner={projectId} title={project.data?.name ?? ''} projectHeight={project.data?.sizes?.character?.h ?? null} />
+}
+
+/** 全局库 · 序列帧：不属于哪个项目，导出时可以存进图片素材 */
+export function LibrarySpritesScreen(): React.JSX.Element {
+  return <SpritesScreen owner={null} title="全局库" projectHeight={null} />
 }
 
 /**
- * 项目 · 序列帧：AI 绿幕动作视频 → 像素序列帧 + 引擎文件。
+ * 序列帧：AI 绿幕动作视频 → 像素序列帧 + 引擎文件。
  * 拖进视频（一个文件夹一个角色）后自动处理；改参数后自动重算（只重算受影响的部分）。
  */
-export default function ProjectSpritesScreen({ projectId }: { projectId: string }): React.JSX.Element {
-  const project = useProject(projectId)
-  const chars = useSpriteCharacters(projectId)
-  const pname = project.data?.name ?? ''
-  const [sel, setSel] = useState(() => restoreSel(projectId))
+function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; title: string; projectHeight: number | null }): React.JSX.Element {
+  const chars = useSpriteCharacters(owner)
+  const [sel, setSel] = useState(() => restoreSel(owner))
   const ch = chars.data.find((c) => c.id === sel.c) ?? chars.data[0] ?? null
   const action = ch?.actions.find((a) => a.id === sel.a) ?? ch?.actions[0] ?? null
   const run = useSpriteRuns((s) => (ch ? s[ch.id] : undefined))
@@ -86,7 +97,7 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
   const select = (c: ID | null, a: ID | null): void => {
     setSel({ c, a })
     try {
-      localStorage.setItem(SEL_KEY(projectId), JSON.stringify({ c, a }))
+      localStorage.setItem(SEL_KEY(owner), JSON.stringify({ c, a }))
     } catch {
       // 记不住只是下次回到第一个
     }
@@ -105,13 +116,13 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
   useEffect(() => {
     const c = chRef.current
     if (!c) return
-    retainActions(c.actions.map((a) => actionKey(projectId, c, a)))
+    retainActions(c.actions.map((a) => actionKey(owner, c, a)))
     const done = useSpriteRuns.getState()[c.id]?.output?.character
     if (done && characterSignature(done) === sig) return
-    const t = setTimeout(() => void processCharacter(projectId, c), first.current ? 0 : 120)
+    const t = setTimeout(() => void processCharacter(owner, c), first.current ? 0 : 120)
     first.current = false
     return () => clearTimeout(t)
-  }, [sig, projectId])
+  }, [sig, owner])
 
   const applyChar = (c: SpriteCharacter): void => chars.mutate((list) => list.map((x) => (x.id === c.id ? c : x)))
 
@@ -129,23 +140,23 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
     if (!ch || !action) return
     const params = { ...action.params, ...patch }
     applyChar({ ...ch, actions: ch.actions.map((a) => (a.id === action.id ? { ...a, params } : a)) })
-    void guard('没能保存参数', () => window.gp.sprites.updateAction(projectId, ch.id, action.id, { params }))
+    void guard('没能保存参数', () => window.gp.sprites.updateAction(owner, ch.id, action.id, { params }))
   }
   const setEdits = (edits: SpriteFrameEdit[]): void => {
     if (!ch || !action) return
     applyChar({ ...ch, actions: ch.actions.map((a) => (a.id === action.id ? { ...a, edits } : a)) })
-    void guard('没能保存换帧', () => window.gp.sprites.updateAction(projectId, ch.id, action.id, { edits }))
+    void guard('没能保存换帧', () => window.gp.sprites.updateAction(owner, ch.id, action.id, { edits }))
   }
   const setSettings = (patch: Partial<SpriteSettings>): void => {
     if (!ch) return
     const settings = { ...ch.settings, ...patch }
     applyChar({ ...ch, settings })
-    void guard('没能保存设置', () => window.gp.sprites.update(projectId, ch.id, { settings }))
+    void guard('没能保存设置', () => window.gp.sprites.update(owner, ch.id, { settings }))
   }
 
   const importVideos = async (paths?: string[]): Promise<void> => {
     try {
-      const r = await window.gp.sprites.create(projectId, paths)
+      const r = await window.gp.sprites.create(owner, paths)
       const made = [...r.created, ...r.merged]
       if (made.length) {
         chars.mutate((list) => [...list.filter((c) => !made.some((m) => m.id === c.id)), ...made])
@@ -160,7 +171,7 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
 
   const addActions = async (c: SpriteCharacter): Promise<void> => {
     try {
-      const r = await window.gp.sprites.addActions(projectId, c.id)
+      const r = await window.gp.sprites.addActions(owner, c.id)
       if (r.added.length) {
         applyChar(r.character)
         select(c.id, r.added[0].id)
@@ -253,7 +264,7 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
       const order = c.actions.map((x) => x.id)
       const j = picked === 'up' ? k - 1 : k + 1
       ;[order[k], order[j]] = [order[j], order[k]]
-      void guard('没能调整顺序', () => window.gp.sprites.reorderActions(projectId, c.id, order))
+      void guard('没能调整顺序', () => window.gp.sprites.reorderActions(owner, c.id, order))
     } else if (picked === 'delete') setDeleting({ kind: 'action', id: a.id, name: a.name })
   }
 
@@ -335,8 +346,9 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
             setPlaying={setPlaying}
             onEdits={setEdits}
             onSegment={(start, end) => setParams({ start, end })}
-            onRetry={() => void processCharacter(projectId, ch)}
+            onRetry={() => void processCharacter(owner, ch)}
             stageRef={stageRef}
+            pixelBar={<PixelBar ch={ch} action={action} projectHeight={projectHeight} onSettings={setSettings} onParams={setParams} />}
           />
         ) : (
           <main className="screen-main">
@@ -350,12 +362,11 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
           action={action}
           output={output}
           out={out}
-          projectHeight={project.data?.sizes?.character?.h ?? null}
           onSettings={setSettings}
           onParams={setParams}
           onApplyAll={() => {
             if (!action) return
-            void guard('没能应用', () => window.gp.sprites.applyParamsToAll(projectId, ch.id, action.params)).then(() =>
+            void guard('没能应用', () => window.gp.sprites.applyParamsToAll(owner, ch.id, action.params)).then(() =>
               hud.show(`已把「${action.name}」的参数用到全部 ${ch.actions.length} 个动作`, { ok: true })
             )
           }}
@@ -372,7 +383,7 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
 
   return (
     <div className="screen">
-      <Toolbar title={pname} subtitle={subtitle}>
+      <Toolbar title={title} subtitle={subtitle}>
         <Button icon="plus" onClick={() => void importVideos()}>
           导入视频
         </Button>
@@ -390,7 +401,7 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
       <div className="screen-body">{body}</div>
 
       {ch && (
-        <ExportSheet open={exporting} projectId={projectId} ch={ch} output={ready ? output : null} failed={failed} onClose={() => setExporting(false)} />
+        <ExportSheet open={exporting} owner={owner} ch={ch} output={ready ? output : null} failed={failed} onClose={() => setExporting(false)} />
       )}
       {action && (
         <WatermarkSheet
@@ -412,8 +423,8 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
           if (!target) return
           await guard('没能重命名', () =>
             renaming.kind === 'char'
-              ? window.gp.sprites.update(projectId, target.id, { name })
-              : window.gp.sprites.updateAction(projectId, target.id, renaming.id, { name })
+              ? window.gp.sprites.update(owner, target.id, { name })
+              : window.gp.sprites.updateAction(owner, target.id, renaming.id, { name })
           )
           setRenaming(null)
         }}
@@ -428,12 +439,12 @@ export default function ProjectSpritesScreen({ projectId }: { projectId: string 
         onConfirm={async () => {
           const d = deleting
           if (!d) return
-          const owner = chars.data.find((c) => (d.kind === 'char' ? c.id === d.id : c.actions.some((a) => a.id === d.id)))
-          if (owner) {
+          const target = chars.data.find((c) => (d.kind === 'char' ? c.id === d.id : c.actions.some((a) => a.id === d.id)))
+          if (target) {
             if (d.kind === 'char') {
-              await guard('没能删除', () => window.gp.sprites.remove(projectId, owner.id))
-              chars.mutate((list) => list.filter((c) => c.id !== owner.id))
-            } else await guard('没能删除', () => window.gp.sprites.deleteAction(projectId, owner.id, d.id))
+              await guard('没能删除', () => window.gp.sprites.remove(owner, target.id))
+              chars.mutate((list) => list.filter((c) => c.id !== target.id))
+            } else await guard('没能删除', () => window.gp.sprites.deleteAction(owner, target.id, d.id))
           }
           setDeleting(null)
         }}

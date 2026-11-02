@@ -4,9 +4,10 @@ import './library.css'
 import { ImagesTab, type ImageFilter, type ImageView } from './ImagesTab'
 import { ModelsTab, type ModelFilter } from './ModelsTab'
 import { PromptsTab, type PromptFilter } from './PromptsTab'
+import { LibrarySpritesScreen } from '../ProjectSprites'
 import { StylesTab } from './StylesTab'
 
-/** 全局库：图片素材 / 3D 模型 / 提示词 / 风格（tab 由侧栏切换，几个 tab 共用这一个实例） */
+/** 全局库：图片素材 / 3D 模型 / 序列帧 / 提示词 / 风格（tab 由侧栏切换，几个 tab 共用这一个实例） */
 export default function LibraryScreen({ tab }: { tab: LibraryTab }): React.JSX.Element {
   // 分类和显示方式在切 tab 时保留；搜索只属于当前 tab，换 tab 就清空
   const [imageCat, setImageCat] = useState<ImageFilter>('all')
@@ -22,6 +23,8 @@ export default function LibraryScreen({ tab }: { tab: LibraryTab }): React.JSX.E
       return <ImagesTab q={q} onQ={setQ} cat={imageCat} onCat={setImageCat} view={view} onView={setView} />
     case 'models':
       return <ModelsTab q={q} onQ={setQ} cat={modelCat} onCat={setModelCat} />
+    case 'sprites':
+      return <LibrarySpritesScreen />
     case 'prompts':
       return <PromptsTab q={q} onQ={setQ} cat={promptCat} onCat={setPromptCat} />
     case 'styles':

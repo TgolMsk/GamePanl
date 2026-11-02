@@ -313,6 +313,7 @@ function readme(bundle: SpriteExportBundle): string {
     `角色名：${bundle.name}`,
     `公共画布：${bundle.canvas.width} × ${bundle.canvas.height}，落脚点：(${bundle.canvas.pivot.join(', ')})`,
     `调色板颜色数：${bundle.palette.length}`,
+    ...(bundle.exportScale > 1 ? [`导出放大倍数：${bundle.exportScale}×（每个像素放大成 ${bundle.exportScale}×${bundle.exportScale}，尺寸、落脚点都已按放大后计算）`] : []),
     '',
     ...bundle.actions.map((action) => `${action.name}：${action.loop ? '循环' : '单次'}，${action.frames.length} 帧，帧率 ${action.fps.toFixed(2)}，单元格 ${action.frameWidth} × ${action.frameHeight}，落脚点 (${action.pivot.join(', ')})`),
     '',
@@ -456,6 +457,7 @@ export async function writeSpriteExport(dir: string, bundle: SpriteExportBundle)
     image: `${bundle.name}_atlas.png`,
     size: [atlas.width, atlas.height],
     pixel_scale: bundle.pixelScale,
+    export_scale: bundle.exportScale,
     palette: bundle.palette,
     canvas: { size: [bundle.canvas.width, bundle.canvas.height], pivot: bundle.canvas.pivot },
     actions: bundle.actions.map((action, index) => ({

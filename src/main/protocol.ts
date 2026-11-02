@@ -4,6 +4,7 @@
 //   ?thumb=N                                缩略图，最长边不超过 N 像素
 //   gp://model/<id>/file/<相对路径>          全局库模型文件夹里的文件（.glb、.gltf、.bin、贴图）
 //   gp://model/<id>/preview                 模型预览图（文件夹自带的或界面渲染的），也支持 ?thumb=N
+//   gp://sprite/project/<projectId>/<角色>/<动作>、gp://sprite/library/<角色>/<动作>   序列帧动作的源视频
 import { protocol } from 'electron'
 import { promises as fs } from 'fs'
 import type { ImageRef } from '@shared/types'
@@ -131,7 +132,7 @@ async function handleModel(url: URL): Promise<Response> {
   return reply(404, 'Not found')
 }
 
-/** gp://sprite/<项目 id>/<角色 id>/<动作 id>：序列帧动作的源视频 */
+/** gp://sprite/project/<项目 id>/<角色 id>/<动作 id>、gp://sprite/library/<角色 id>/<动作 id>：序列帧动作的源视频 */
 async function handleSprite(url: URL): Promise<Response> {
   let parts: string[]
   try {
@@ -139,8 +140,10 @@ async function handleSprite(url: URL): Promise<Response> {
   } catch {
     return reply(400, 'Bad request')
   }
-  if (parts.length !== 3 || !parts.every(isSafeId)) return reply(404, 'Not found')
-  const path = await videoPath(parts[0], parts[1], parts[2])
+  const [scope, ...ids] = parts
+  const owner = scope === 'library' && ids.length === 2 ? null : scope === 'project' && ids.length === 3 ? ids.shift()! : undefined
+  if (owner === undefined || !ids.every(isSafeId) || (owner !== null && !isSafeId(owner))) return reply(404, 'Not found')
+  const path = await videoPath(owner, ids[0], ids[1])
   const buf = path ? await readIfFile(path) : null
   if (!buf || !path) return reply(404, 'Not found')
   return image(buf, path.endsWith('.mov') ? 'video/quicktime' : 'video/mp4')

@@ -1,7 +1,8 @@
 // 开发截图：设置了环境变量 GAMEPANL_SHOT_DIR 时，窗口准备好后依次切到各个页面截图保存，然后退出。
 //   GAMEPANL_SHOT_SAMPLE=1   先导入示例内容
+//   GAMEPANL_SHOT_LAYOUT=1   额外截三种尺寸和序列帧弹出面板，检查布局并保存 layout-report.txt
 //   GAMEPANL_LOG_CONSOLE=1   把界面的 console 消息和渲染进程异常打印到终端（不截图时也生效）
-//   GAMEPANL_SHOT_SPRITES=<视频或文件夹路径，多个用逗号分隔>   先导入到第一个项目的序列帧（截序列帧页面时等处理完）
+//   GAMEPANL_SHOT_SPRITES=<视频或文件夹路径，多个用逗号分隔>   先导入到第一个项目和全局库的序列帧（截序列帧页面时等处理完）
 //   GAMEPANL_SHOT_SPRITES_EXPORT=<目录>   截完序列帧页面后点「导出…」导出到这个目录
 // 页面切换由界面提供的 window.__gpDev.go(route) 完成（projectId 省略 = 第一个项目）。
 import { app } from 'electron'
@@ -12,6 +13,7 @@ import { join, resolve } from 'path'
 const SHOTS: Array<{ name: string; route: Record<string, string> }> = [
   { name: 'library-images', route: { view: 'library', tab: 'images' } },
   { name: 'library-models', route: { view: 'library', tab: 'models' } },
+  { name: 'library-sprites', route: { view: 'library', tab: 'sprites' } },
   { name: 'library-prompts', route: { view: 'library', tab: 'prompts' } },
   { name: 'library-styles', route: { view: 'library', tab: 'styles' } },
   { name: 'project-config', route: { view: 'project', tab: 'config' } },
@@ -34,6 +36,153 @@ const IMAGES_READY = `(() => {
   }
   return [...document.images].filter(inView).every((img) => img.complete)
 })()`
+
+// 只读取页面布局。按控件「实际露出来的部分」判断：滚动区里滚出去的、被底栏盖住滚动内容的不算问题；
+// 故意的省略号（text-overflow: ellipsis、多行截断）不算文字被裁；同一个父元素里绝对定位叠上去的按钮（卡片上的小按钮）不算重叠。
+// 分组表单行的标签（.rowi > .k）也参与重叠检查，用来发现标签和控件挤在一起。
+const LAYOUT_CHECK = `(() => {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect()
+    const s = getComputedStyle(el)
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && Number(s.opacity) > 0 && (el.checkVisibility?.() ?? true)
+  }
+  const describe = (el, r = el.getBoundingClientRect()) => {
+    const classes = [...el.classList].slice(0, 3).map((c) => '.' + c).join('')
+    const label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 20)
+    const rect = { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) }
+    return el.tagName.toLowerCase() + classes + ' ' + JSON.stringify(label) + ' ' + JSON.stringify(rect)
+  }
+  const clipsAny = (s) => s.overflowX !== 'visible' || s.overflowY !== 'visible'
+  const innerBox = (el) => {
+    const p = el.getBoundingClientRect()
+    return { left: p.left + el.clientLeft, top: p.top + el.clientTop, right: p.left + el.clientLeft + el.clientWidth, bottom: p.top + el.clientTop + el.clientHeight }
+  }
+  const meet = (a, b) => ({ left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.right), bottom: Math.min(a.bottom, b.bottom) })
+  const empty = (r) => r.right - r.left <= 1 || r.bottom - r.top <= 1
+  /** 被各级会裁剪的祖先裁过之后露出来的部分 */
+  const shown = (el) => {
+    let r = el.getBoundingClientRect()
+    r = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
+    for (let p = el.parentElement; p; p = p.parentElement) if (clipsAny(getComputedStyle(p))) r = meet(r, innerBox(p))
+    return r
+  }
+  const intentional = (el) => {
+    const s = getComputedStyle(el)
+    return s.textOverflow === 'ellipsis' || (s.webkitLineClamp && s.webkitLineClamp !== 'none')
+  }
+  const abs = (el) => ['absolute', 'fixed'].includes(getComputedStyle(el).position)
+  // 打开了面板（sheet）时只看最上层面板里的控件，背后被遮住的不算
+  const sheets = [...document.querySelectorAll('.sheet[role="dialog"]')].filter(visible)
+  const root = sheets[sheets.length - 1] ?? document
+  const controls = [...root.querySelectorAll('button, input, select, textarea, a[href], [role="button"], [role="tab"], [role="switch"], [role="slider"], [role="checkbox"], .rowi > .k')]
+    .filter(visible).map((el) => ({ el, rect: el.getBoundingClientRect(), vis: shown(el) })).filter((c) => !empty(c.vis))
+  const issues = []
+  for (let i = 0; i < controls.length; i++) {
+    const { el, rect: r, vis } = controls[i]
+    const description = describe(el, r)
+    for (let j = i + 1; j < controls.length; j++) {
+      const { el: other, vis: ov } = controls[j]
+      if (el.contains(other) || other.contains(el)) continue
+      if (el.parentElement === other.parentElement && (abs(el) || abs(other))) continue
+      if (!empty(meet(vis, ov))) issues.push('重叠：' + description + ' ↔ ' + describe(other))
+    }
+    // 文字放不下（排除输入框和故意的省略号）
+    if (!el.matches('input, select, textarea')) {
+      let clipped = el.scrollWidth > el.clientWidth + 1 && !intentional(el)
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      while (!clipped && walker.nextNode()) {
+        const node = walker.currentNode
+        const parent = node.parentElement
+        if (!node.textContent.trim() || !parent || !visible(parent) || intentional(parent)) continue
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        clipped = [...range.getClientRects()].some((t) => t.width > 0 && t.height > 0 && (t.left < r.left - 1 || t.right > r.right + 1 || t.top < r.top - 1 || t.bottom > r.bottom + 1))
+      }
+      if (clipped) issues.push('文字被裁：' + description)
+    }
+    // 被不能滚动的容器切掉一部分
+    for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+      const s = getComputedStyle(parent)
+      if (!clipsAny(s)) continue
+      const box = innerBox(parent)
+      const cutX = r.left < box.left - 1 || r.right > box.right + 1
+      const cutY = r.top < box.top - 1 || r.bottom > box.bottom + 1
+      const stuckX = ['hidden', 'clip'].includes(s.overflowX) || parent.scrollWidth <= parent.clientWidth
+      const stuckY = ['hidden', 'clip'].includes(s.overflowY) || parent.scrollHeight <= parent.clientHeight
+      if ((cutX && stuckX) || (cutY && stuckY)) issues.push('超出容器：' + description + '；容器 ' + describe(parent))
+      break
+    }
+    if (vis.right > innerWidth + 1 || vis.bottom > innerHeight + 1 || vis.left < -1 || vis.top < -1) issues.push('超出窗口：' + description)
+  }
+  return issues
+})()`
+
+// 序列帧右栏的折叠组全部展开，参数行也要检查
+const OPEN_DISCLOSURES = `(() => { document.querySelectorAll('.sp-disc.closed').forEach((b) => b.click()); return true })()`
+
+type LayoutGroup = { name: string; width: number; height: number; issues: string[] }
+
+async function captureLayout(win: BrowserWindow, dir: string, name: string, width: number, height: number): Promise<LayoutGroup> {
+  const wc = win.webContents
+  const file = join(dir, `${name}@${width}.png`)
+  await fs.writeFile(file, (await wc.capturePage()).toPNG())
+  const issues: string[] = await wc.executeJavaScript(LAYOUT_CHECK)
+  console.log(`[devshot] ${file}`)
+  return { name, width, height, issues }
+}
+
+async function checkLayout(win: BrowserWindow, dir: string, name: string): Promise<LayoutGroup[]> {
+  const wc = win.webContents
+  const originalSize = win.getContentSize()
+  const groups: LayoutGroup[] = []
+  try {
+    if (name.endsWith('-sprites')) {
+      await wc.executeJavaScript(OPEN_DISCLOSURES)
+      await delay(300)
+    }
+    for (const [width, height] of [[1080, 680], [1280, 800], [1440, 900]]) {
+      win.setContentSize(width, height)
+      wc.sendInputEvent({ type: 'mouseMove', x: 260, y: 26 })
+      await delay(400)
+      await waitForImages(win)
+      groups.push(await captureLayout(win, dir, name, width, height))
+    }
+    if (name.endsWith('-sprites')) {
+      win.setContentSize(1280, 800)
+      await delay(400)
+      // 只打开面板查看，Escape 退出；不点导出或保存，也不展开会写入偏好设置的分组
+      for (const panel of [
+        { text: '导出…', scope: '.toolbar', name: `${name}-export` },
+        { text: '框选…', scope: '.sp-insp', name: `${name}-watermark` }
+      ]) {
+        const opened: boolean = await wc.executeJavaScript(`(() => {
+          const b = [...document.querySelectorAll(${JSON.stringify(panel.scope)} + ' button')].find((x) =>
+            x.textContent.trim() === ${JSON.stringify(panel.text)} && !x.disabled && x.getBoundingClientRect().width > 0 && (x.checkVisibility?.() ?? true))
+          if (b) b.click()
+          return !!b
+        })()`)
+        if (!opened) {
+          console.warn(`[devshot] 找不到可用的「${panel.text}」按钮，跳过布局检查`)
+          continue
+        }
+        try {
+          await delay(800)
+          await waitForImages(win)
+          groups.push(await captureLayout(win, dir, panel.name, 1280, 800))
+        } finally {
+          wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+          wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+          await delay(500)
+        }
+      }
+    }
+  } finally {
+    // 恢复原尺寸，原来的无尺寸截图和显式导出仍走原流程
+    win.setContentSize(originalSize[0], originalSize[1])
+    await delay(400)
+  }
+  return groups
+}
 
 async function waitForImages(win: BrowserWindow): Promise<void> {
   for (let waited = 0; waited < 10_000; waited += 200) {
@@ -80,6 +229,8 @@ async function exportSprites(win: BrowserWindow, dir: string): Promise<void> {
 
 async function capture(win: BrowserWindow, dir: string): Promise<void> {
   const wc = win.webContents
+  const layout = process.env['GAMEPANL_SHOT_LAYOUT'] === '1'
+  const layoutGroups: LayoutGroup[] = []
   await fs.mkdir(dir, { recursive: true })
   await wc.insertCSS(SHOT_CSS)
   if (process.env['GAMEPANL_SHOT_SAMPLE'] === '1') {
@@ -88,7 +239,7 @@ async function capture(win: BrowserWindow, dir: string): Promise<void> {
   const spritePaths = process.env['GAMEPANL_SHOT_SPRITES']
   if (spritePaths) {
     await wc.executeJavaScript(
-      `window.gp.projects.list().then((ps) => ps[0] && window.gp.sprites.create(ps[0].id, ${JSON.stringify(spritePaths.split(','))}))`
+      `Promise.all([window.gp.projects.list().then((ps) => ps[0] && window.gp.sprites.create(ps[0].id, ${JSON.stringify(spritePaths.split(','))})), window.gp.sprites.create(null, ${JSON.stringify(spritePaths.split(','))})])`
     )
   }
   await delay(1500)
@@ -99,7 +250,8 @@ async function capture(win: BrowserWindow, dir: string): Promise<void> {
     await wc.executeJavaScript(`window.__gpDev && window.__gpDev.go(${JSON.stringify(shot.route)})`)
     await delay(900)
     await waitForImages(win)
-    if (shot.name === 'project-sprites') await waitForSprites(win)
+    if (shot.name.endsWith('-sprites')) await waitForSprites(win)
+    if (layout) layoutGroups.push(...await checkLayout(win, dir, shot.name))
     const exportDir = process.env['GAMEPANL_SHOT_SPRITES_EXPORT']
     if (shot.name === 'project-sprites' && exportDir) await exportSprites(win, exportDir)
     // 鼠标恰好停在窗口上时会带出卡片的悬停状态；截图前把指针挪到工具栏标题上
@@ -109,6 +261,15 @@ async function capture(win: BrowserWindow, dir: string): Promise<void> {
     const file = join(dir, `${shot.name}.png`)
     await fs.writeFile(file, image.toPNG())
     console.log(`[devshot] ${file}`)
+  }
+  if (layout) {
+    const total = layoutGroups.reduce((sum, group) => sum + group.issues.length, 0)
+    const report = layoutGroups.map((group) =>
+      `${group.name} @ ${group.width}×${group.height}\n${group.issues.length ? group.issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n') : '无'}`
+    ).join('\n\n')
+    const file = join(dir, 'layout-report.txt')
+    await fs.writeFile(file, `${report}\n\n问题总数：${total}\n`, 'utf8')
+    console.log(`[devshot] 布局报告 ${file}，问题总数：${total}`)
   }
 }
 

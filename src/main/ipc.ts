@@ -3,7 +3,7 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, shell, systemPreferences } from 'electron'
 import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
 import { DATA_CHANGED_CHANNEL } from '@shared/api'
-import { SPRITE_VIDEO_EXTENSIONS } from '@shared/sprites'
+import { SPRITE_VIDEO_EXTENSIONS, type SpriteOwner } from '@shared/sprites'
 import type { AppInfo, DataChange, ID, ImageRef, LibModel } from '@shared/types'
 import { copyImageToClipboard, IMPORT_EXTENSIONS } from './images'
 import * as library from './library'
@@ -375,19 +375,24 @@ export function registerIpc(): void {
     emit({ kind: 'models', projectId: pid }, { kind: 'projects' })
   })
 
-  // ---------- 项目 · 序列帧 ----------
-  const spritesChanged = (pid: string, projectList = false): void => {
+  // ---------- 序列帧（项目里的，或全局库的：owner 为 null） ----------
+  const spritesChanged = (pid: SpriteOwner, projectList = false): void => {
     emit({ kind: 'sprites', projectId: pid })
-    if (projectList) emit({ kind: 'projects' })
+    if (projectList && pid !== null) emit({ kind: 'projects' })
+  }
+  /** 项目 id 或 null（全局库）；项目要存在 */
+  const asOwner = async (v: unknown): Promise<SpriteOwner> => {
+    if (v === null) return null
+    const pid = asId(v)
+    await projects.assertProject(pid)
+    return pid
   }
   handle('sprites:list', async (_e, projectId) => {
-    const pid = asId(projectId)
-    await projects.assertProject(pid)
+    const pid = await asOwner(projectId)
     return sprites.listCharacters(pid)
   })
   handle('sprites:create', async (event, projectId, paths, height) => {
-    const pid = asId(projectId)
-    await projects.assertProject(pid)
+    const pid = await asOwner(projectId)
     const files = await pickVideos(event, asOptionalPaths(paths), '导入动作视频')
     if (files.length === 0) return { created: [], merged: [], skipped: [] }
     const r = await sprites.createCharacters(pid, files, height === undefined || height === null ? undefined : asInt(height, '像素身高', 8, 512))
@@ -395,7 +400,7 @@ export function registerIpc(): void {
     return r
   })
   handle('sprites:addActions', async (event, projectId, id, paths) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const cid = asId(id, '角色 id')
     await sprites.getCharacter(pid, cid)
     const files = await pickVideos(event, asOptionalPaths(paths), '添加动作视频')
@@ -404,45 +409,46 @@ export function registerIpc(): void {
     return r
   })
   handle('sprites:update', async (_e, projectId, id, patch) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const c = await sprites.updateCharacter(pid, asId(id, '角色 id'), patch)
     spritesChanged(pid)
     return c
   })
   handle('sprites:updateAction', async (_e, projectId, id, actionId, patch) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const c = await sprites.updateAction(pid, asId(id, '角色 id'), asId(actionId, '动作 id'), patch)
     spritesChanged(pid)
     return c
   })
   handle('sprites:applyParamsToAll', async (_e, projectId, id, params) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const c = await sprites.applyParamsToAll(pid, asId(id, '角色 id'), params)
     spritesChanged(pid)
     return c
   })
   handle('sprites:reorderActions', async (_e, projectId, id, order) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const c = await sprites.reorderActions(pid, asId(id, '角色 id'), asIds(order, '动作 id'))
     spritesChanged(pid)
     return c
   })
   handle('sprites:deleteAction', async (_e, projectId, id, actionId) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const c = await sprites.deleteAction(pid, asId(id, '角色 id'), asId(actionId, '动作 id'))
     spritesChanged(pid)
     return c
   })
   handle('sprites:remove', async (_e, projectId, id) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     await sprites.deleteCharacter(pid, asId(id, '角色 id'))
     spritesChanged(pid, true)
   })
   handle('sprites:export', async (_e, projectId, id, payload, dir) => {
-    const pid = asId(projectId)
+    const pid = await asOwner(projectId)
     const r = await sprites.exportCharacter(pid, asId(id, '角色 id'), payload, asString(dir, '导出目录', 4096), app.getVersion())
     spritesChanged(pid)
-    if (r.assets) emit({ kind: 'assets', projectId: pid }, { kind: 'projects' })
+    if (r.assets && pid === null) emit({ kind: 'library-images' }, { kind: 'library-styles' })
+    else if (r.assets && pid !== null) emit({ kind: 'assets', projectId: pid }, { kind: 'projects' })
     return r
   })
   handle('sprites:detectGodot', (_e, dir) => sprites.detectGodotPrefix(asString(dir, '目录', 4096)))

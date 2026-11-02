@@ -4,8 +4,8 @@ import { hud } from '@renderer/app/hud'
 import { showError } from '@renderer/screens/Library/shared'
 import { sourceFrame, type ActionOutput, type CharacterOutput } from '@renderer/sprites/engine'
 import { Button, GroupList, GroupRow, Segmented, Sheet, TextField } from '@renderer/ui'
-import { safeFileName, type SpriteCharacter, type SpriteWatermark } from '@shared/sprites'
-import { buildPayload } from './bundle'
+import { safeFileName, type SpriteCharacter, type SpriteOwner, type SpriteWatermark } from '@shared/sprites'
+import { buildPayload, EXPORT_SCALES } from './bundle'
 import { prepCanvas, toBitmap } from './draw'
 
 type Rect = [number, number, number, number]
@@ -120,14 +120,15 @@ export function WatermarkSheet({
 
 export function ExportSheet({
   open,
-  projectId,
+  owner,
   ch,
   output,
   failed,
   onClose
 }: {
   open: boolean
-  projectId: string
+  /** 项目 id；null 为全局库（存进图片素材） */
+  owner: SpriteOwner
   ch: SpriteCharacter
   output: CharacterOutput | null
   /** 处理失败、不会导出的动作名 */
@@ -140,6 +141,7 @@ export function ExportSheet({
   const [manual, setManual] = useState(prefs.godotPrefix ?? '')
   const [godotMode, setGodotMode] = useState<'auto' | 'manual'>(prefs.godotPrefix ? 'manual' : 'auto')
   const [assets, setAssets] = useState(prefs.updateAssets)
+  const [scale, setScale] = useState(prefs.scale)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -148,6 +150,7 @@ export function ExportSheet({
     setManual(prefs.godotPrefix ?? '')
     setGodotMode(prefs.godotPrefix ? 'manual' : 'auto')
     setAssets(prefs.updateAssets)
+    setScale(prefs.scale)
     // 只在打开时取一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -170,6 +173,9 @@ export function ExportSheet({
   }
 
   const name = safeFileName(ch.name)
+  const assetPlace = owner === null ? '图片素材' : '资料'
+  const sizes = output ? output.actions.map((o) => `${o.frameWidth * scale}×${o.frameHeight * scale}`) : []
+  const sizeText = [...new Set(sizes)].slice(0, 3).join('、') + (new Set(sizes).size > 3 ? ' 等' : '')
   const names = output ? output.actions.map((o) => ch.actions.find((a) => a.id === o.actionId)?.name ?? '') : []
   const manualOk = /^res:\/\/[^\s]*$/.test(manual.trim())
 
@@ -177,12 +183,12 @@ export function ExportSheet({
     if (!dir || !output) return
     setBusy(true)
     try {
-      await window.gp.sprites.update(projectId, ch.id, {
-        exportPrefs: { ...prefs, godotPrefix: godotMode === 'manual' && manualOk ? manual.trim() : null, updateAssets: assets }
+      await window.gp.sprites.update(owner, ch.id, {
+        exportPrefs: { ...prefs, godotPrefix: godotMode === 'manual' && manualOk ? manual.trim() : null, updateAssets: assets, scale }
       })
-      const r = await window.gp.sprites.export(projectId, ch.id, buildPayload(ch, output), dir)
+      const r = await window.gp.sprites.export(owner, ch.id, buildPayload(ch, output, scale), dir)
       onClose()
-      hud.show(`已导出「${ch.name}」· ${r.files} 个文件${r.assets ? `，${r.assets} 张存进了资料` : ''}`, {
+      hud.show(`已导出「${ch.name}」· ${r.files} 个文件${r.assets ? `，${r.assets} 张存进了${assetPlace}` : ''}`, {
         action: { label: '在访达中显示', run: () => void window.gp.sprites.reveal(r.folder) }
       })
     } catch (err) {
@@ -210,7 +216,7 @@ export function ExportSheet({
       open={open}
       onClose={onClose}
       title={`导出「${ch.name}」`}
-      subtitle={output ? `${output.actions.length} 个动作 · ${output.palette.length} 色` : '还在处理'}
+      subtitle={output ? `${output.actions.length} 个动作 · ${output.palette.length} 色${scale > 1 ? ` · 放大 ${scale}×` : ''}` : '还在处理'}
       width={600}
       footer={
         <>
@@ -248,9 +254,18 @@ export function ExportSheet({
           ) : (
             <GroupRow label=" " value={detected ? `${detected.replace(/\/$/, '')}/${name}/` : dir ? '不在 Godot 项目里，资源里写相对路径' : '选好位置后自动识别'} />
           )}
-          <GroupRow label="同时存进资料">
+          <GroupRow label="放大倍数" top>
             <Segmented
-              ariaLabel="同时存进项目资料"
+              ariaLabel="导出放大倍数"
+              value={String(scale)}
+              onChange={(v) => setScale(Number(v))}
+              options={EXPORT_SCALES.map((k) => ({ value: String(k), label: `${k}×` }))}
+            />
+          </GroupRow>
+          <GroupRow label=" " value={output ? `每帧 ${sizeText} 像素${scale > 1 ? `（原尺寸 × ${scale}，最近邻放大，像素不糊）` : '（原尺寸）'}` : ''} />
+          <GroupRow label={owner === null ? '同时存进图片素材' : '同时存进资料'}>
+            <Segmented
+              ariaLabel={owner === null ? '同时存进图片素材' : '同时存进项目资料'}
               value={assets ? 'on' : 'off'}
               onChange={(v) => setAssets(v === 'on')}
               options={[
@@ -265,7 +280,7 @@ export function ExportSheet({
         <div className="sp-note">
           {godotPrefix ? `Godot 里直接用 ${godotPrefix.replace(/\/$/, '')}/${name}/${name}.tscn。` : ''}
           再次导出到同一位置会覆盖这些文件，文件夹里你自己放的其他文件不会动。
-          {assets ? ' 资料里上次导出的图会换成新的。' : ''}
+          {assets ? ` ${assetPlace}里上次导出的图会换成新的。` : ''}
         </div>
       </div>
     </Sheet>

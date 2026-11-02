@@ -46,6 +46,7 @@ const bundle: SpriteExportBundle = {
   name: '测试角色',
   palette: ['#d6322b', '#235eb1', '#f5ca34'],
   pixelScale: 0.125,
+  exportScale: 1,
   canvas: { width: 64, height: 74, pivot: [32, 70] },
   actions: [makeAction('run', 8, 53, 66, 12.632, true), makeAction('attack', 5, 60, 70, 10, false)],
   report: { passed: true, checks: [{ name: 'alpha', errors: 0 }] },
@@ -186,7 +187,7 @@ async function checkExport(root: string): Promise<void> {
 
   const metadata = await jsonFile(join(result.folder, `${bundle.name}.json`))
   assert.deepEqual(metadata, {
-    name: bundle.name, image: `${bundle.name}_atlas.png`, size: [424, 136], pixel_scale: 0.125,
+    name: bundle.name, image: `${bundle.name}_atlas.png`, size: [424, 136], pixel_scale: 0.125, export_scale: 1,
     palette: bundle.palette, canvas: { size: [64, 74], pivot: [32, 70] },
     actions: bundle.actions.map((action, index) => ({
       name: action.name, loop: action.loop, fps: action.fps, frame_size: [action.frameWidth, action.frameHeight], pivot: action.pivot,

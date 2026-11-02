@@ -1,4 +1,5 @@
 // 裁切与布局：单个动作按全部帧并集定比例；多个动作的角色共用一个缩放比和落脚点（按第 0 帧站姿身高）。
+// 动作单独设了像素身高时，缩放比按「单独身高 ÷ 角色身高」换算，不参加统一画布。
 // 坐标映射：输出 = (源坐标 − 参考点) × 缩放比 + 单元格内的落脚点。
 
 import type { SrcBox } from './downsample'
@@ -57,6 +58,8 @@ export interface LayoutOptions {
   pad: number
   outline: boolean
   unifiedCanvas: boolean
+  /** 各动作单独设的像素身高；null 跟角色 */
+  heights?: Array<number | null>
 }
 
 const up = (v: number): number => Math.max(0, Math.ceil(v - 1e-6))
@@ -68,7 +71,7 @@ export function layoutCharacter(geos: ActionGeometry[], o: LayoutOptions): Chara
     // 单个动作：像素身高 = 全部帧并集的高度（与参考实现一致）
     const g = geos[0]
     const u = g.union
-    const ch = Math.max(1, roundHalfEven(o.height * g.tweak))
+    const ch = Math.max(1, roundHalfEven((o.heights?.[0] ?? o.height) * g.tweak))
     const s = ch / (u.y1 - u.y0)
     const cw = Math.max(1, roundHalfEven((u.x1 - u.x0) * s))
     const bw = cw / s
@@ -102,11 +105,12 @@ export function layoutCharacter(geos: ActionGeometry[], o: LayoutOptions): Chara
   const spread = valid.length ? Math.max(...valid) / Math.min(...valid) - 1 : 0
   const inconsistent = spread > 0.03
   const shared = o.height / Math.max(1e-6, median(valid)) // 输出像素 ÷ 源像素
-  const scales = geos.map((g) => {
+  const scales = geos.map((g, i) => {
     // 输出像素 ÷ 工作分辨率像素（工作像素 = 源像素 × workScale）
     const base = inconsistent && g.h0 > 0 ? o.height / g.h0 : shared / g.workScale
-    return base * g.tweak
+    return base * g.tweak * ((o.heights?.[i] ?? o.height) / o.height)
   })
+  const own = geos.map((_, i) => o.heights?.[i] != null)
   const ext = geos.map((g, i) => {
     const s = scales[i]
     return {
@@ -115,12 +119,13 @@ export function layoutCharacter(geos: ActionGeometry[], o: LayoutOptions): Chara
       top: Math.max(1, up((g.ground - g.union.y0) * s))
     }
   })
-  const maxL = Math.max(...ext.map((e) => e.left))
-  const maxR = Math.max(...ext.map((e) => e.right))
-  const maxT = Math.max(...ext.map((e) => e.top))
+  const common = ext.filter((_, i) => !own[i])
+  const maxL = Math.max(0, ...common.map((e) => e.left))
+  const maxR = Math.max(0, ...common.map((e) => e.right))
+  const maxT = Math.max(1, ...common.map((e) => e.top))
   const actions = geos.map((g, i): ActionLayout => {
     const s = scales[i]
-    const e = o.unifiedCanvas ? { left: maxL, right: maxR, top: maxT } : ext[i]
+    const e = o.unifiedCanvas && !own[i] ? { left: maxL, right: maxR, top: maxT } : ext[i]
     const cw = Math.max(1, e.left + e.right)
     const ch = e.top
     return {

@@ -1,11 +1,12 @@
 // 序列帧协调器（界面线程）：Worker 池、按角色处理全部动作。
 // 同一角色的所有动作共用一个缩放比、一个落脚点和一套调色板：
 //   各动作分析（并行）→ 统一布局 → 调色板取样 → 共享调色板 → 各动作出图（并行）
+// 动作单独设了像素身高时按比例换算缩放比；单独设了颜色数时用自己的一套调色板。
 
 import { create } from 'zustand'
 import { spriteVideoUrl } from '@shared/api'
 import type { ID } from '@shared/types'
-import type { SpriteAction, SpriteCharacter } from '@shared/sprites'
+import type { SpriteAction, SpriteCharacter, SpriteOwner } from '@shared/sprites'
 import { layoutCharacter, type ActionLayout, type CharacterLayout } from './core/layout'
 import type { Palette } from './core/palette'
 import { h0Qc, type QcItem } from './core/qc'
@@ -67,16 +68,16 @@ function workerFor(key: string): WorkerClient {
   return w
 }
 
-export function actionKey(projectId: ID, ch: SpriteCharacter, a: SpriteAction): string {
-  return `${projectId}/${ch.id}/${a.id}/${a.video}`
+export function actionKey(owner: SpriteOwner, ch: SpriteCharacter, a: SpriteAction): string {
+  return `${owner ?? 'library'}/${ch.id}/${a.id}/${a.video}`
 }
 
-function ensureLoaded(projectId: ID, ch: SpriteCharacter, a: SpriteAction): Promise<void> {
-  const key = actionKey(projectId, ch, a)
+function ensureLoaded(owner: SpriteOwner, ch: SpriteCharacter, a: SpriteAction): Promise<void> {
+  const key = actionKey(owner, ch, a)
   let p = loaded.get(key)
   if (!p) {
     p = (async () => {
-      const res = await fetch(spriteVideoUrl(projectId, ch.id, a.id))
+      const res = await fetch(spriteVideoUrl(owner, ch.id, a.id))
       if (!res.ok) throw new Error(res.status === 404 ? '源视频不见了' : `读不到源视频（${res.status}）`)
       const bytes = await res.arrayBuffer()
       await workerFor(key).call({ type: 'load', key, bytes }, [bytes])
@@ -117,6 +118,10 @@ export interface ActionOutput {
   key: string
   analysis: AnalyzeResult
   layout: ActionLayout
+  /** 这个动作用的调色板 */
+  palette: Palette
+  /** 单独设了颜色数、用自己的调色板 */
+  ownPalette: boolean
   frames: Uint8Array[]
   frameWidth: number
   frameHeight: number
@@ -125,6 +130,7 @@ export interface ActionOutput {
 }
 
 export interface CharacterOutput {
+  /** 共用调色板（全部动作都单独设了颜色数时是第一个动作的） */
   palette: Palette
   layout: CharacterLayout
   actions: ActionOutput[]
@@ -172,7 +178,7 @@ function omit<T>(o: Record<string, T>, k: string): Record<string, T> {
  * 处理一个角色的全部动作。同一角色再次调用时，前一次的结果作废（只显示最新的）。
  * 返回最新结果；被更新的调用取代时返回 null。
  */
-export async function processCharacter(projectId: ID, ch: SpriteCharacter): Promise<CharacterOutput | null> {
+export async function processCharacter(owner: SpriteOwner, ch: SpriteCharacter): Promise<CharacterOutput | null> {
   const version = (versions.get(ch.id) ?? 0) + 1
   versions.set(ch.id, version)
   const stale = (): boolean => versions.get(ch.id) !== version
@@ -187,16 +193,16 @@ export async function processCharacter(projectId: ID, ch: SpriteCharacter): Prom
   // 1) 各动作分析（并行）
   const analyzed = await Promise.all(
     ch.actions.map(async (a) => {
-      const key = actionKey(projectId, ch, a)
+      const key = actionKey(owner, ch, a)
       try {
         if (!loaded.has(key)) setPhase(ch.id, a.id, 'loading')
-        await ensureLoaded(projectId, ch, a)
+        await ensureLoaded(owner, ch, a)
         if (stale()) return null
         setPhase(ch.id, a.id, 'analyzing')
         const analysis = await workerFor(key).call<AnalyzeResult>({
           type: 'analyze',
           key,
-          options: { name: a.name, params: a.params, edits: a.edits, height: s.height, work: s.work }
+          options: { name: a.name, params: a.params, edits: a.edits, height: a.params.height ?? s.height, work: s.work }
         })
         return { a, key, analysis }
       } catch (err) {
@@ -215,30 +221,39 @@ export async function processCharacter(projectId: ID, ch: SpriteCharacter): Prom
   // 2) 统一布局
   const layout = layoutCharacter(
     ok.map((x) => x.analysis.geometry),
-    { height: s.height, pad: s.pad, outline: s.outline, unifiedCanvas: s.unifiedCanvas }
+    { height: s.height, pad: s.pad, outline: s.outline, unifiedCanvas: s.unifiedCanvas, heights: ok.map((x) => x.a.params.height) }
   )
 
-  // 3) 调色板取样 → 共享调色板
-  const quotas = sampleQuotas(ok.map((x) => x.analysis.fgCount))
-  let palette: Palette
+  // 3) 调色板取样 → 共享调色板（单独设了颜色数的动作各用一套）
+  const shared = ok.map((_, i) => i).filter((i) => ok[i].a.params.colors === null)
+  const own = ok.map((_, i) => i).filter((i) => ok[i].a.params.colors !== null)
+  const sharedQuotas = sampleQuotas(shared.map((i) => ok[i].analysis.fgCount))
+  const samplesOf = (i: number, quota: number): Promise<Uint8Array> =>
+    workerFor(ok[i].key).call<Uint8Array>({
+      type: 'samples',
+      key: ok[i].key,
+      layout: layout.actions[i],
+      resample: s.resample,
+      quota,
+      alphaThreshold: ok[i].a.params.alphaThreshold
+    })
+  const paletteOf = (key: string, parts: Uint8Array[], colors: number): Promise<Palette> =>
+    workerFor(key).call<Palette>({ type: 'palette', parts, colors }, parts.map((p) => p.buffer))
+  const palettes: Palette[] = []
+  let sharedPalette: Palette | null = null
   try {
-    const parts = await Promise.all(
-      ok.map((x, i) =>
-        workerFor(x.key).call<Uint8Array>({
-          type: 'samples',
-          key: x.key,
-          layout: layout.actions[i],
-          resample: s.resample,
-          quota: quotas[i],
-          alphaThreshold: x.a.params.alphaThreshold
-        })
-      )
-    )
+    const [sharedParts, ownParts] = await Promise.all([
+      Promise.all(shared.map((i, k) => samplesOf(i, sharedQuotas[k]))),
+      Promise.all(own.map((i) => samplesOf(i, sampleQuotas([ok[i].analysis.fgCount])[0])))
+    ])
     if (stale()) return null
-    palette = await workerFor(ok[0].key).call<Palette>(
-      { type: 'palette', parts, colors: s.colors },
-      parts.map((p) => p.buffer)
-    )
+    const [sp, ...op] = await Promise.all([
+      shared.length ? paletteOf(ok[shared[0]].key, sharedParts, s.colors) : Promise.resolve(null),
+      ...own.map((i, k) => paletteOf(ok[i].key, [ownParts[k]], ok[i].a.params.colors ?? s.colors))
+    ])
+    sharedPalette = sp
+    for (const i of shared) palettes[i] = sp as Palette
+    own.forEach((i, k) => (palettes[i] = op[k] as Palette))
   } catch (err) {
     if (!stale()) {
       for (const x of ok) setPhase(ch.id, x.a.id, 'error', err instanceof Error ? err.message : String(err))
@@ -258,7 +273,7 @@ export async function processCharacter(projectId: ID, ch: SpriteCharacter): Prom
           key: x.key,
           options: {
             layout: layout.actions[i],
-            palette,
+            palette: palettes[i],
             resample: s.resample,
             outline: s.outline,
             pad: s.pad,
@@ -271,6 +286,8 @@ export async function processCharacter(projectId: ID, ch: SpriteCharacter): Prom
           key: x.key,
           analysis: x.analysis,
           layout: layout.actions[i],
+          palette: palettes[i],
+          ownPalette: x.a.params.colors !== null,
           frames: r.frames,
           frameWidth: r.frameWidth,
           frameHeight: r.frameHeight,
@@ -288,7 +305,7 @@ export async function processCharacter(projectId: ID, ch: SpriteCharacter): Prom
   if (stale()) return null
   const actions = rendered.filter((x): x is ActionOutput => x !== null)
   const output: CharacterOutput = {
-    palette,
+    palette: sharedPalette ?? palettes[0],
     layout,
     actions,
     qc: [h0Qc(layout.h0Spread, layout.h0Inconsistent)],

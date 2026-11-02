@@ -145,6 +145,27 @@ test('多动作布局：首帧身高差 ≤ 3% 共用缩放比，落脚点对齐
   assert.equal(bad.actions[0].frameHeight, bad.actions[1].frameHeight)
 })
 
+test('动作单独设像素身高：缩放比按比例换算，不参加统一画布', () => {
+  const geo = (h0: number): ActionGeometry => ({
+    workWidth: 768,
+    workHeight: 768,
+    workScale: 768 / 1440,
+    union: { x0: 320, y0: 280, x1: 450, y1: 600 },
+    h0,
+    refX: 380,
+    ground: 600,
+    tweak: 1
+  })
+  const base = layoutCharacter([geo(300), geo(300)], { height: 64, pad: 1, outline: true, unifiedCanvas: true })
+  const L = layoutCharacter([geo(300), geo(300)], { height: 64, pad: 1, outline: true, unifiedCanvas: true, heights: [null, 32] })
+  assert.equal(L.actions[0].scale, base.actions[0].scale)
+  assert.ok(Math.abs(L.actions[1].scale - base.actions[0].scale / 2) < 1e-12)
+  assert.ok(L.actions[1].frameHeight < L.actions[0].frameHeight)
+  // 单个动作：直接用单独身高
+  const one = layoutCharacter([geo(300)], { height: 64, pad: 0, outline: false, unifiedCanvas: false, heights: [40] })
+  assert.equal(one.actions[0].ch, 40)
+})
+
 test('动作名识别', () => {
   assert.equal(detectActionName('wan3_run_swordsman'), 'run')
   assert.equal(detectActionName('剑士-攻击-02'), 'attack')

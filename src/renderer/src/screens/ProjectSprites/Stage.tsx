@@ -1,4 +1,4 @@
-// 中间栏：预览（放大、背景、落脚点、对比源视频）+ 帧条（删帧、换相邻源帧）+ 源视频时间轴（拖动选片段）。
+// 中间栏：预览（放大、背景、落脚点、对比源视频）+ 像素调节 + 帧条（删帧、换相邻源帧）+ 源视频时间轴（拖动选片段）。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { Button, Icon, Segmented, Stepper, cx } from '@renderer/ui'
@@ -61,6 +61,8 @@ export interface StageProps {
   onSegment: (start: number | null, end: number | null) => void
   onRetry: () => void
   stageRef: React.RefObject<HTMLElement | null>
+  /** 预览上方的像素调节条 */
+  pixelBar?: React.ReactNode
 }
 
 export function Stage(p: StageProps): React.JSX.Element {
@@ -70,8 +72,9 @@ export function Stage(p: StageProps): React.JSX.Element {
   const fw = out?.frameWidth ?? 1
   const fh = out?.frameHeight ?? 1
   const bitmaps = useBitmaps(out?.frames, fw, fh)
-  const autoZoom = Math.max(1, Math.min(8, Math.floor(300 / fh)))
-  const zoom = prefs.zoom ?? autoZoom
+  const viewRef = useRef<HTMLDivElement>(null)
+  const viewSize = useSize(viewRef)
+  const zoom = prefs.zoom ?? fitZoom(viewSize, fw, fh, prefs.compare)
   const fps = out?.analysis.fps ?? 12
 
   // 按导出帧率循环播放
@@ -110,36 +113,80 @@ export function Stage(p: StageProps): React.JSX.Element {
 
   return (
     <section ref={p.stageRef} className="sp-stage" tabIndex={0} aria-label="序列帧预览">
+      {/* 工具条分四组，窄时整组换行，组内不拆开 */}
       <div className="sp-bar">
-        <Button
-          size="sm"
-          variant="plain"
-          icon={playing ? 'pause' : 'play'}
-          onClick={() => setPlaying(!playing)}
-          disabled={n < 2}
-          aria-label={playing ? '暂停' : '播放'}
-          title={playing ? '暂停（空格）' : '播放（空格）'}
-        />
-        <Button size="sm" variant="plain" icon="chevron.left" onClick={() => n && setCur((i - 1 + n) % n)} disabled={n < 2} aria-label="上一帧" />
-        <Button size="sm" variant="plain" icon="chevron.right" onClick={() => n && setCur((i + 1) % n)} disabled={n < 2} aria-label="下一帧" />
-        <span className="lbl">{out ? `${fps.toFixed(fps % 1 ? 2 : 0)} fps` : ''}</span>
-        <span className="sep" />
-        <span className="lbl" title="放大倍数">{zoom}×</span>
-        <Stepper value={zoom} min={1} max={8} onChange={(z) => useViewPrefs.setState({ zoom: z })} label="放大倍数" />
-        <span className="sep" />
-        <Segmented ariaLabel="背景" value={prefs.bg} onChange={(bg) => useViewPrefs.setState({ bg })} options={BG_OPTIONS} />
-        <Button size="sm" variant="plain" icon={prefs.guides ? 'checkmark.square' : 'square'} onClick={() => useViewPrefs.setState({ guides: !prefs.guides })}>
-          落脚点
-        </Button>
-        <Button size="sm" variant="plain" icon={prefs.compare ? 'checkmark.square' : 'square'} onClick={() => useViewPrefs.setState({ compare: !prefs.compare })}>
-          对比原片
-        </Button>
+        <div className="g">
+          <Button
+            size="sm"
+            variant="plain"
+            icon={playing ? 'pause' : 'play'}
+            onClick={() => setPlaying(!playing)}
+            disabled={n < 2}
+            aria-label={playing ? '暂停' : '播放'}
+            title={playing ? '暂停（空格）' : '播放（空格）'}
+          />
+          <Button size="sm" variant="plain" icon="chevron.left" onClick={() => n && setCur((i - 1 + n) % n)} disabled={n < 2} aria-label="上一帧" />
+          <Button size="sm" variant="plain" icon="chevron.right" onClick={() => n && setCur((i + 1) % n)} disabled={n < 2} aria-label="下一帧" />
+          <span className="lbl fps">{out ? `${fps.toFixed(fps % 1 ? 2 : 0)} fps` : ''}</span>
+        </div>
+        <div className="g">
+          <span className="lbl zoom" title={prefs.zoom === null ? '按预览区大小自动放大' : '放大倍数'}>
+            {zoom}×
+          </span>
+          <Stepper value={zoom} min={1} max={8} onChange={(z) => useViewPrefs.setState({ zoom: z })} label="放大倍数" />
+          {prefs.zoom !== null && (
+            <Button size="sm" variant="plain" onClick={() => useViewPrefs.setState({ zoom: null })} title="按预览区大小自动放大">
+              适应
+            </Button>
+          )}
+        </div>
+        <div className="g">
+          <Segmented ariaLabel="背景" value={prefs.bg} onChange={(bg) => useViewPrefs.setState({ bg })} options={BG_OPTIONS} />
+        </div>
+        <div className="g">
+          <Button size="sm" variant="plain" icon={prefs.guides ? 'checkmark.square' : 'square'} onClick={() => useViewPrefs.setState({ guides: !prefs.guides })}>
+            落脚点
+          </Button>
+          <Button size="sm" variant="plain" icon={prefs.compare ? 'checkmark.square' : 'square'} onClick={() => useViewPrefs.setState({ compare: !prefs.compare })}>
+            对比原片
+          </Button>
+        </div>
       </div>
-      <div className={cx('sp-view', prefs.bg !== 'checker' && `bg-${prefs.bg}`)}>{view}</div>
+      {p.pixelBar}
+      <div ref={viewRef} className={cx('sp-view', prefs.bg !== 'checker' && `bg-${prefs.bg}`)}>
+        {view}
+      </div>
       {out && <FrameStrip {...p} out={out} bitmaps={bitmaps} i={i} />}
       {out && <Timeline {...p} out={out} i={i} />}
     </section>
   )
+}
+
+/** 元素内容区大小（跟着窗口、侧栏变化） */
+function useSize(ref: React.RefObject<HTMLElement | null>): { w: number; h: number } | null {
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const read = (): void =>
+      setSize((old) => (old && old.w === el.clientWidth && old.h === el.clientHeight ? old : { w: el.clientWidth, h: el.clientHeight }))
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    read()
+    return () => ro.disconnect()
+  }, [ref])
+  return size
+}
+
+/** 自动放大：整数倍、整帧（连同下方说明文字）放得进预览区；对比原片时左右各占一半 */
+export function fitZoom(view: { w: number; h: number } | null, fw: number, fh: number, compare: boolean): number {
+  if (!view) return Math.max(1, Math.min(8, Math.floor(300 / fh)))
+  const pad = 40 // .sp-view 四周 20
+  const cap = 44 // 帧下方的说明文字，上下各留一份保证居中时不出界
+  const gap = 28
+  const w = compare ? (view.w - pad - gap) / 2 : view.w - pad
+  const h = view.h - pad - cap
+  return Math.max(1, Math.min(8, Math.floor(Math.min(w / fw, h / fh))))
 }
 
 function FrameView({
@@ -404,9 +451,12 @@ function Timeline(p: StageProps & { out: ActionOutput; i: number }): React.JSX.E
   return (
     <div className="sp-tl">
       <div className="hd">
-        <span className="lbl">
-          源视频 {total} 帧 · 片段第 {s}–{e - 1} 帧（{e - s} 帧）· {info}（{why}）
-          {loop ? ` · 周期 ${loop.periodFrames} 帧` : ''}
+        <span
+          className="lbl"
+          title={`源视频 ${total} 帧 · 片段第 ${s}–${e - 1} 帧（${e - s} 帧）· ${info}（${why}）${loop ? ` · 周期 ${loop.periodFrames} 帧` : ''}`}
+        >
+          片段 {s}–{e - 1}（{e - s} 帧，共 {total}）· {info}
+          {loop ? ` · 周期 ${loop.periodFrames}` : ''}
         </span>
         <span className="grow" />
         {!out.analysis.segmentAuto && (

@@ -20,7 +20,7 @@ import type {
   Style,
   UpdateState
 } from './types'
-import type { SpriteAction, SpriteActionParams, SpriteActionPatch, SpriteCharacter, SpriteCharacterPatch, SpriteExportBundle } from './sprites'
+import type { SpriteAction, SpriteActionParams, SpriteActionPatch, SpriteCharacter, SpriteCharacterPatch, SpriteExportBundle, SpriteOwner } from './sprites'
 
 export type LibImagePatch = Partial<Pick<LibImage, 'name' | 'category' | 'tags'>>
 export type LibModelPatch = Partial<Pick<LibModel, 'name' | 'category' | 'tags'>>
@@ -142,22 +142,25 @@ export interface GpApi {
     removeModels(projectId: ID, modelIds: ID[]): Promise<void>
   }
 
-  /** 序列帧：AI 绿幕动作视频 → 像素序列帧（每个项目下若干角色，每个角色若干动作） */
+  /**
+   * 序列帧：AI 绿幕动作视频 → 像素序列帧（每个项目、以及全局库，各有若干角色，每个角色若干动作）。
+   * 第一个参数 owner 是项目 id；null 为全局库。
+   */
   sprites: {
-    list(projectId: ID): Promise<SpriteCharacter[]>
+    list(owner: SpriteOwner): Promise<SpriteCharacter[]>
     /** 导入视频新建角色：每个文件夹一个角色，一起拖进来的零散视频算一个角色。没给路径时弹出选择框 */
-    create(projectId: ID, paths?: string[], height?: number): Promise<SpriteImportResult>
+    create(owner: SpriteOwner, paths?: string[], height?: number): Promise<SpriteImportResult>
     /** 给角色添加动作视频。没给路径时弹出选择框 */
-    addActions(projectId: ID, id: ID, paths?: string[]): Promise<SpriteAddResult>
-    update(projectId: ID, id: ID, patch: SpriteCharacterPatch): Promise<SpriteCharacter>
-    updateAction(projectId: ID, id: ID, actionId: ID, patch: SpriteActionPatch): Promise<SpriteCharacter>
+    addActions(owner: SpriteOwner, id: ID, paths?: string[]): Promise<SpriteAddResult>
+    update(owner: SpriteOwner, id: ID, patch: SpriteCharacterPatch): Promise<SpriteCharacter>
+    updateAction(owner: SpriteOwner, id: ID, actionId: ID, patch: SpriteActionPatch): Promise<SpriteCharacter>
     /** 把一套参数用到全部动作（片段起止、循环 / 单次各自保留） */
-    applyParamsToAll(projectId: ID, id: ID, params: SpriteActionParams): Promise<SpriteCharacter>
-    reorderActions(projectId: ID, id: ID, order: ID[]): Promise<SpriteCharacter>
-    deleteAction(projectId: ID, id: ID, actionId: ID): Promise<SpriteCharacter>
-    remove(projectId: ID, id: ID): Promise<void>
-    /** 导出到 dir/<角色名>/ */
-    export(projectId: ID, id: ID, payload: SpriteExportPayload, dir: string): Promise<SpriteExportOutcome>
+    applyParamsToAll(owner: SpriteOwner, id: ID, params: SpriteActionParams): Promise<SpriteCharacter>
+    reorderActions(owner: SpriteOwner, id: ID, order: ID[]): Promise<SpriteCharacter>
+    deleteAction(owner: SpriteOwner, id: ID, actionId: ID): Promise<SpriteCharacter>
+    remove(owner: SpriteOwner, id: ID): Promise<void>
+    /** 导出到 dir/<角色名>/；开了「同时存进资料」时图集和动图存进项目资料（全局库的角色存进图片素材） */
+    export(owner: SpriteOwner, id: ID, payload: SpriteExportPayload, dir: string): Promise<SpriteExportOutcome>
     /** 这个目录在不在 Godot 项目里；在的话返回对应的 res:// 路径 */
     detectGodot(dir: string): Promise<string | null>
     /** 在访达中显示导出的文件夹 */
@@ -232,9 +235,10 @@ export function modelFileUrl(id: ID, file: string): string {
   return `gp://model/${encodeURIComponent(id)}/file/${file.split('/').map(encodeURIComponent).join('/')}`
 }
 
-/** 序列帧动作的源视频 */
-export function spriteVideoUrl(projectId: ID, id: ID, actionId: ID): string {
-  return `gp://sprite/${encodeURIComponent(projectId)}/${encodeURIComponent(id)}/${encodeURIComponent(actionId)}`
+/** 序列帧动作的源视频（owner 为 null 是全局库的角色） */
+export function spriteVideoUrl(owner: SpriteOwner, id: ID, actionId: ID): string {
+  const scope = owner === null ? 'library' : `project/${encodeURIComponent(owner)}`
+  return `gp://sprite/${scope}/${encodeURIComponent(id)}/${encodeURIComponent(actionId)}`
 }
 
 export function modelPreviewUrl(model: { id: ID; preview: string | null; rendered: boolean }, thumb?: number): string {

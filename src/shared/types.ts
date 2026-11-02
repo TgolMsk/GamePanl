@@ -330,4 +330,5 @@ export type DataChange =
   | { kind: 'notes'; projectId: ID }
   | { kind: 'assets'; projectId: ID }
   | { kind: 'models'; projectId: ID }
-  | { kind: 'sprites'; projectId: ID }
+  /** projectId 为 null：全局库的序列帧 */
+  | { kind: 'sprites'; projectId: ID | null }

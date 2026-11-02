@@ -1,4 +1,5 @@
-// 序列帧角色的存储：projects/<id>/sprites/<角色 id>/character.json，源视频拷进同目录的 videos/。
+// 序列帧角色的存储：projects/<id>/sprites/<角色 id>/character.json（全局库在 library/sprites/<角色 id>/），
+// 源视频拷进同目录的 videos/。
 // 源视频拷一份进工作台：「下载」里的原文件被清理掉以后，照样能重新调整、重新导出。
 import { promises as fs } from 'fs'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
@@ -16,10 +17,12 @@ import {
   type SpriteExportPrefs,
   type SpriteExportResult,
   type SpriteFrameEdit,
+  type SpriteOwner,
   type SpriteSettings
 } from '@shared/sprites'
 import type { ID } from '@shared/types'
 import { imageInfo, type Candidate } from './images'
+import { addLibraryImages, deleteImage } from './library'
 import { addProjectAssets, deleteAsset } from './projects'
 import { actionPreviewGif, composeAtlas, encodePng, writeSpriteExport } from './spriteExport'
 import { exists, isNotFound, newId, nowIso, paths, readJson, trash, withLock, writeJson } from './storage'
@@ -28,10 +31,10 @@ import { asBoolean, asId, asLine, asObject, fail, has, isSafeId } from './valida
 const MAX_VIDEO_BYTES = 1024 * 1024 * 1024
 
 export const spritePaths = {
-  root: (projectId: ID) => join(paths.project(projectId), 'sprites'),
-  dir: (projectId: ID, id: ID) => join(spritePaths.root(projectId), asId(id, '角色 id')),
-  file: (projectId: ID, id: ID) => join(spritePaths.dir(projectId, id), 'character.json'),
-  videos: (projectId: ID, id: ID) => join(spritePaths.dir(projectId, id), 'videos')
+  root: (owner: SpriteOwner) => (owner === null ? paths.libSprites() : join(paths.project(owner), 'sprites')),
+  dir: (owner: SpriteOwner, id: ID) => join(spritePaths.root(owner), asId(id, '角色 id')),
+  file: (owner: SpriteOwner, id: ID) => join(spritePaths.dir(owner, id), 'character.json'),
+  videos: (owner: SpriteOwner, id: ID) => join(spritePaths.dir(owner, id), 'videos')
 }
 
 export function isVideoFile(path: string): boolean {
@@ -40,16 +43,16 @@ export function isVideoFile(path: string): boolean {
 
 // ---------- 读取 ----------
 
-async function readCharacter(projectId: ID, id: ID): Promise<SpriteCharacter | null> {
-  const raw = await readJson<unknown>(spritePaths.file(projectId, id), null)
+async function readCharacter(owner: SpriteOwner, id: ID): Promise<SpriteCharacter | null> {
+  const raw = await readJson<unknown>(spritePaths.file(owner, id), null)
   if (!raw || typeof raw !== 'object') return null
   return normalizeCharacter(raw as Record<string, unknown>, id)
 }
 
-export async function listCharacters(projectId: ID): Promise<SpriteCharacter[]> {
+export async function listCharacters(owner: SpriteOwner): Promise<SpriteCharacter[]> {
   let names: string[]
   try {
-    names = await fs.readdir(spritePaths.root(projectId))
+    names = await fs.readdir(spritePaths.root(owner))
   } catch (err) {
     if (isNotFound(err)) return []
     throw err
@@ -58,7 +61,7 @@ export async function listCharacters(projectId: ID): Promise<SpriteCharacter[]> 
   for (const name of names) {
     if (!isSafeId(name)) continue
     try {
-      const c = await readCharacter(projectId, name)
+      const c = await readCharacter(owner, name)
       if (c) out.push(c)
     } catch (err) {
       console.error(`[sprites] 跳过无法读取的角色 ${name}:`, err)
@@ -67,17 +70,17 @@ export async function listCharacters(projectId: ID): Promise<SpriteCharacter[]> 
   return out.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
 }
 
-export async function getCharacter(projectId: ID, id: ID): Promise<SpriteCharacter> {
-  const c = await readCharacter(projectId, id)
+export async function getCharacter(owner: SpriteOwner, id: ID): Promise<SpriteCharacter> {
+  const c = await readCharacter(owner, id)
   if (!c) fail('角色不存在')
   return c
 }
 
-export async function countCharacters(projectId: ID): Promise<number> {
+export async function countCharacters(owner: SpriteOwner): Promise<number> {
   try {
-    const names = await fs.readdir(spritePaths.root(projectId))
+    const names = await fs.readdir(spritePaths.root(owner))
     let n = 0
-    for (const name of names) if (isSafeId(name) && (await exists(spritePaths.file(projectId, name)))) n++
+    for (const name of names) if (isSafeId(name) && (await exists(spritePaths.file(owner, name)))) n++
     return n
   } catch {
     return 0
@@ -85,11 +88,11 @@ export async function countCharacters(projectId: ID): Promise<number> {
 }
 
 /** 动作的源视频文件 */
-export async function videoPath(projectId: ID, id: ID, actionId: ID): Promise<string | null> {
-  const c = await readCharacter(projectId, id)
+export async function videoPath(owner: SpriteOwner, id: ID, actionId: ID): Promise<string | null> {
+  const c = await readCharacter(owner, id)
   const a = c?.actions.find((x) => x.id === actionId)
   if (!a || !isSafeVideoName(a.video)) return null
-  return join(spritePaths.videos(projectId, id), a.video)
+  return join(spritePaths.videos(owner, id), a.video)
 }
 
 function isSafeVideoName(name: string): boolean {
@@ -131,14 +134,14 @@ function uniqueName(name: string, taken: string[]): string {
   }
 }
 
-async function copyVideo(projectId: ID, charId: ID, file: string, taken: string[]): Promise<SpriteAction> {
+async function copyVideo(owner: SpriteOwner, charId: ID, file: string, taken: string[]): Promise<SpriteAction> {
   const st = await fs.stat(file)
   if (!st.isFile()) fail(`不是文件：${basename(file)}`)
   if (st.size > MAX_VIDEO_BYTES) fail(`视频太大了（超过 1 GB）：${basename(file)}`)
   const id = newId()
   const ext = extname(file).slice(1).toLowerCase()
   const video = `${id}.${ext}`
-  const dir = spritePaths.videos(projectId, charId)
+  const dir = spritePaths.videos(owner, charId)
   await fs.mkdir(dir, { recursive: true })
   await fs.copyFile(file, join(dir, video))
   return {
@@ -179,7 +182,7 @@ async function alreadyImported(c: SpriteCharacter, file: string): Promise<boolea
  * 名字和已有角色相同时（比如后来补生成了 jump.mp4），动作加进已有角色，导入过的视频跳过。
  * height 是新角色的默认像素身高。
  */
-export async function createCharacters(projectId: ID, inputs: string[], height?: number): Promise<CreateResult> {
+export async function createCharacters(owner: SpriteOwner, inputs: string[], height?: number): Promise<CreateResult> {
   const skipped: CreateResult['skipped'] = []
   const groups: Array<{ name: string; files: string[] }> = []
   const loose: string[] = []
@@ -204,7 +207,7 @@ export async function createCharacters(projectId: ID, inputs: string[], height?:
   if (loose.length) {
     groups.push({ name: inferCharacterName(loose) ?? basename(dirname(loose[0])), files: loose })
   }
-  const existing = await listCharacters(projectId)
+  const existing = await listCharacters(owner)
   const takenNames = existing.map((c) => c.name)
   const created: SpriteCharacter[] = []
   const merged: SpriteCharacter[] = []
@@ -217,7 +220,7 @@ export async function createCharacters(projectId: ID, inputs: string[], height?:
         else fresh.push(f)
       }
       if (fresh.length === 0) continue
-      const r = await addActions(projectId, same.id, fresh)
+      const r = await addActions(owner, same.id, fresh)
       skipped.push(...r.skipped)
       if (r.added.length) merged.push(r.character)
       continue
@@ -226,7 +229,7 @@ export async function createCharacters(projectId: ID, inputs: string[], height?:
     const actions: SpriteAction[] = []
     for (const f of g.files) {
       try {
-        actions.push(await copyVideo(projectId, id, f, actions.map((a) => a.name)))
+        actions.push(await copyVideo(owner, id, f, actions.map((a) => a.name)))
       } catch (err) {
         skipped.push({ path: f, reason: err instanceof Error ? err.message : String(err) })
       }
@@ -240,19 +243,19 @@ export async function createCharacters(projectId: ID, inputs: string[], height?:
       name,
       settings: { ...DEFAULT_SPRITE_SETTINGS, ...(height ? { height: clampInt(height, 8, 512) } : {}) },
       actions,
-      exportPrefs: { dir: null, godotPrefix: null, updateAssets: true, lastExportAt: null },
+      exportPrefs: { dir: null, godotPrefix: null, updateAssets: true, scale: 1, lastExportAt: null },
       assetIds: [],
       createdAt: now,
       updatedAt: now
     }
-    await writeJson(spritePaths.file(projectId, id), c)
+    await writeJson(spritePaths.file(owner, id), c)
     created.push(c)
   }
   return { created, merged, skipped }
 }
 
 /** 给已有角色添加动作（视频文件，或文件夹里的视频） */
-export async function addActions(projectId: ID, id: ID, inputs: string[]): Promise<{ character: SpriteCharacter; added: SpriteAction[]; skipped: CreateResult['skipped'] }> {
+export async function addActions(owner: SpriteOwner, id: ID, inputs: string[]): Promise<{ character: SpriteCharacter; added: SpriteAction[]; skipped: CreateResult['skipped'] }> {
   const files: string[] = []
   const skipped: CreateResult['skipped'] = []
   for (const p of inputs) {
@@ -266,10 +269,10 @@ export async function addActions(projectId: ID, id: ID, inputs: string[]): Promi
     }
   }
   const added: SpriteAction[] = []
-  const character = await mutate(projectId, id, async (c) => {
+  const character = await mutate(owner, id, async (c) => {
     for (const f of files) {
       try {
-        const a = await copyVideo(projectId, id, f, [...c.actions, ...added].map((x) => x.name))
+        const a = await copyVideo(owner, id, f, [...c.actions, ...added].map((x) => x.name))
         added.push(a)
       } catch (err) {
         skipped.push({ path: f, reason: err instanceof Error ? err.message : String(err) })
@@ -282,10 +285,10 @@ export async function addActions(projectId: ID, id: ID, inputs: string[]): Promi
 
 // ---------- 修改 ----------
 
-function mutate(projectId: ID, id: ID, fn: (c: SpriteCharacter) => void | Promise<void>): Promise<SpriteCharacter> {
-  const file = spritePaths.file(projectId, id)
+function mutate(owner: SpriteOwner, id: ID, fn: (c: SpriteCharacter) => void | Promise<void>): Promise<SpriteCharacter> {
+  const file = spritePaths.file(owner, id)
   return withLock(file, async () => {
-    const c = await readCharacter(projectId, id)
+    const c = await readCharacter(owner, id)
     if (!c) fail('角色不存在')
     await fn(c)
     c.updatedAt = nowIso()
@@ -294,9 +297,9 @@ function mutate(projectId: ID, id: ID, fn: (c: SpriteCharacter) => void | Promis
   })
 }
 
-export function updateCharacter(projectId: ID, id: ID, patch: unknown): Promise<SpriteCharacter> {
+export function updateCharacter(owner: SpriteOwner, id: ID, patch: unknown): Promise<SpriteCharacter> {
   const p = asObject(patch, '角色修改')
-  return mutate(projectId, id, (c) => {
+  return mutate(owner, id, (c) => {
     if (has(p, 'name')) {
       const name = asLine(p['name'], '角色名', 80).trim()
       if (!name) fail('角色名不能为空')
@@ -307,9 +310,9 @@ export function updateCharacter(projectId: ID, id: ID, patch: unknown): Promise<
   })
 }
 
-export function updateAction(projectId: ID, id: ID, actionId: ID, patch: unknown): Promise<SpriteCharacter> {
+export function updateAction(owner: SpriteOwner, id: ID, actionId: ID, patch: unknown): Promise<SpriteCharacter> {
   const p = asObject(patch, '动作修改')
-  return mutate(projectId, id, (c) => {
+  return mutate(owner, id, (c) => {
     const a = c.actions.find((x) => x.id === actionId)
     if (!a) fail('动作不存在')
     if (has(p, 'name')) {
@@ -323,35 +326,37 @@ export function updateAction(projectId: ID, id: ID, actionId: ID, patch: unknown
   })
 }
 
-/** 把一组参数应用到全部动作（片段起止、换帧记录除外） */
-export function applyParamsToAll(projectId: ID, id: ID, params: unknown): Promise<SpriteCharacter> {
+/** 把一组参数应用到全部动作（片段起止、循环 / 单次、单独设的像素身高和颜色数、换帧记录除外） */
+export function applyParamsToAll(owner: SpriteOwner, id: ID, params: unknown): Promise<SpriteCharacter> {
   const src = normalizeParams(asObject(params, '动作参数'))
-  return mutate(projectId, id, (c) => {
-    for (const a of c.actions) a.params = { ...src, start: a.params.start, end: a.params.end, kind: a.params.kind }
+  return mutate(owner, id, (c) => {
+    for (const a of c.actions) {
+      a.params = { ...src, start: a.params.start, end: a.params.end, kind: a.params.kind, height: a.params.height, colors: a.params.colors }
+    }
   })
 }
 
-export function reorderActions(projectId: ID, id: ID, order: ID[]): Promise<SpriteCharacter> {
-  return mutate(projectId, id, (c) => {
+export function reorderActions(owner: SpriteOwner, id: ID, order: ID[]): Promise<SpriteCharacter> {
+  return mutate(owner, id, (c) => {
     const rank = new Map(order.map((x, i) => [x, i]))
     c.actions.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9))
   })
 }
 
-export async function deleteAction(projectId: ID, id: ID, actionId: ID): Promise<SpriteCharacter> {
+export async function deleteAction(owner: SpriteOwner, id: ID, actionId: ID): Promise<SpriteCharacter> {
   let video: string | null = null
-  const c = await mutate(projectId, id, (ch) => {
+  const c = await mutate(owner, id, (ch) => {
     const a = ch.actions.find((x) => x.id === actionId)
     if (!a) fail('动作不存在')
     video = a.video
     ch.actions = ch.actions.filter((x) => x !== a)
   })
-  if (video && isSafeVideoName(video)) await trash(join(spritePaths.videos(projectId, id), video))
+  if (video && isSafeVideoName(video)) await trash(join(spritePaths.videos(owner, id), video))
   return c
 }
 
-export async function deleteCharacter(projectId: ID, id: ID): Promise<void> {
-  await trash(spritePaths.dir(projectId, id))
+export async function deleteCharacter(owner: SpriteOwner, id: ID): Promise<void> {
+  await trash(spritePaths.dir(owner, id))
 }
 
 /** 往上找 project.godot，算出导出目录对应的 res:// 路径（角色文件夹在它下面）；不在 Godot 项目里返回 null */
@@ -410,7 +415,9 @@ function normalizeParams(raw: Record<string, unknown>): SpriteActionParams {
     watermark,
     despill: typeof raw['despill'] === 'boolean' ? raw['despill'] : d.despill,
     alphaThreshold: clampNum(raw['alphaThreshold'], 0.05, 0.95, d.alphaThreshold),
-    scaleTweak: clampNum(raw['scaleTweak'], 0.8, 1.2, d.scaleTweak)
+    scaleTweak: clampNum(raw['scaleTweak'], 0.8, 1.2, d.scaleTweak),
+    height: raw['height'] === null || raw['height'] === undefined ? null : clampInt(raw['height'], 8, 512),
+    colors: raw['colors'] === null || raw['colors'] === undefined ? null : clampInt(raw['colors'], 2, 64)
   }
 }
 
@@ -436,6 +443,7 @@ function normalizeExportPrefs(raw: Record<string, unknown>): SpriteExportPrefs {
     dir: str(raw['dir']),
     godotPrefix: prefix,
     updateAssets: raw['updateAssets'] === undefined ? true : asBoolean(raw['updateAssets'], '同时更新项目资料'),
+    scale: clampInt(raw['scale'], 1, 8, 1),
     lastExportAt: str(raw['lastExportAt'])
   }
 }
@@ -504,6 +512,7 @@ function asExportPayload(v: unknown): ExportPayload {
   return {
     palette: o['palette'] as string[],
     pixelScale: typeof o['pixelScale'] === 'number' ? o['pixelScale'] : 1,
+    exportScale: clampInt(o['exportScale'], 1, 8, 1),
     canvas: canvas as unknown as ExportPayload['canvas'],
     actions: actions as SpriteExportAction[],
     report: o['report'] ?? null
@@ -511,7 +520,7 @@ function asExportPayload(v: unknown): ExportPayload {
 }
 
 export interface ExportOutcome extends SpriteExportResult {
-  /** 存进项目资料的图片数（没开「同时更新项目资料」时为 0） */
+  /** 存进项目资料（全局库的角色是图片素材）的图片数；没开「同时存进资料」时为 0 */
   assets: number
   godotPrefix: string | null
   character: SpriteCharacter
@@ -519,10 +528,10 @@ export interface ExportOutcome extends SpriteExportResult {
 
 /**
  * 导出到 dir/<角色名>/。godotPrefix 没手动指定时，按导出目录往上找 project.godot 自动推算。
- * 开了「同时更新项目资料」时，把图集和各动作的动图存进项目资料（替换上次导出的那几张）。
+ * 开了「同时存进资料」时，把图集和各动作的动图存进项目资料（全局库的角色存进图片素材），替换上次导出的那几张。
  */
-export async function exportCharacter(projectId: ID, id: ID, payload: unknown, dir: string, appVersion: string): Promise<ExportOutcome> {
-  const c = await getCharacter(projectId, id)
+export async function exportCharacter(owner: SpriteOwner, id: ID, payload: unknown, dir: string, appVersion: string): Promise<ExportOutcome> {
+  const c = await getCharacter(owner, id)
   const p = asExportPayload(payload)
   const target = resolve(dir)
   const godotPrefix = c.exportPrefs.godotPrefix ?? (await detectGodotPrefix(target))
@@ -544,23 +553,31 @@ export async function exportCharacter(projectId: ID, id: ID, payload: unknown, d
       const side = Math.max(a.frameWidth, a.frameHeight)
       push(actionPreviewGif(a, Math.min(8, Math.max(1, Math.round(256 / side)))), a.name)
     }
-    const results = await addProjectAssets(
-      projectId,
-      candidates.map((x) => x.c),
-      () => ({ category: '角色', tags: ['序列帧', c.name] })
-    )
+    const meta = { category: '角色' as const, tags: ['序列帧', c.name] }
+    const results =
+      owner === null
+        ? await addLibraryImages(
+            candidates.map((x) => x.c),
+            () => meta
+          )
+        : await addProjectAssets(
+            owner,
+            candidates.map((x) => x.c),
+            () => meta
+          )
     assetIds = results.map((r) => r.item.id)
     for (const old of c.assetIds) {
       if (assetIds.includes(old)) continue
       try {
-        await deleteAsset(projectId, old)
+        if (owner === null) await deleteImage(old)
+        else await deleteAsset(owner, old)
       } catch {
         // 用户已经在资料里删掉了
       }
     }
     assets = assetIds.length
   }
-  const character = await mutate(projectId, id, (ch) => {
+  const character = await mutate(owner, id, (ch) => {
     ch.assetIds = assetIds
     ch.exportPrefs = { ...ch.exportPrefs, dir: target, lastExportAt: nowIso() }
   })

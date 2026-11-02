@@ -22,6 +22,7 @@ export const paths = {
   prompts: () => join(dataRoot(), 'library', 'prompts.json'),
   styles: () => join(dataRoot(), 'library', 'styles.json'),
   libModelsDir: () => join(dataRoot(), 'library', 'models'),
+  libSprites: () => join(dataRoot(), 'library', 'sprites'),
   libModels: () => join(dataRoot(), 'library', 'models.json'),
   libModelHashes: () => join(dataRoot(), 'library', 'model-hashes.json'),
   libModelPreviews: () => join(dataRoot(), 'library', 'model-previews'),

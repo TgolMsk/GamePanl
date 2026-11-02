@@ -1,8 +1,11 @@
 // 序列帧：把 AI 生成的「纯色背景、固定机位」角色动作视频提取成像素 Sprite Sheet。
-// 一个项目里有若干「角色」，一个角色有若干「动作」（每个动作一段视频）。
-// 存在 projects/<id>/sprites/<角色 id>/character.json，源视频拷贝在同目录的 videos/ 里。
+// 每个项目、以及全局库，各有若干「角色」，一个角色有若干「动作」（每个动作一段视频）。
+// 存在 projects/<id>/sprites/<角色 id>/character.json（全局库在 library/sprites/<角色 id>/），源视频拷贝在同目录的 videos/ 里。
 
 import type { ID, ISODate } from './types'
+
+/** 序列帧归属：项目 id；null 为全局库 */
+export type SpriteOwner = ID | null
 
 export const SPRITE_VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v']
 
@@ -43,9 +46,13 @@ export interface SpriteActionParams {
   alphaThreshold: number
   /** 比例微调：1 不调，0.8–1.2；用于第 0 帧不是站姿的视频 */
   scaleTweak: number
+  /** 只给这个动作用的像素身高；null 跟角色的「像素身高」 */
+  height: number | null
+  /** 只给这个动作用的颜色数（单独一套调色板）；null 和其他动作共用调色板 */
+  colors: number | null
 }
 
-/** 整个角色共用的输出设置（共用一套调色板，所以颜色数、描边等不能按动作各设各的） */
+/** 整个角色共用的输出设置（像素身高、颜色数可以在动作参数里单独覆盖） */
 export interface SpriteSettings {
   /** 像素身高：一个动作时指全部帧并集的高度；多个动作时指第 0 帧站姿身高 */
   height: number
@@ -88,8 +95,10 @@ export interface SpriteExportPrefs {
   dir: string | null
   /** Godot 项目里的 res:// 目录；null 时按导出目录自动推算（往上找 project.godot），找不到写相对路径 */
   godotPrefix: string | null
-  /** 导出时同时把图集和各动作动图更新到项目资料 */
+  /** 导出时同时把图集和各动作动图存进项目资料（全局库的角色存进图片素材） */
   updateAssets: boolean
+  /** 导出放大倍数：每个像素放大成 N×N（最近邻，不糊），1–8 */
+  scale: number
   lastExportAt: ISODate | null
 }
 
@@ -99,7 +108,7 @@ export interface SpriteCharacter {
   settings: SpriteSettings
   actions: SpriteAction[]
   exportPrefs: SpriteExportPrefs
-  /** 上次存进项目资料的图片 id（再次导出时替换掉） */
+  /** 上次存进项目资料（或图片素材）的图片 id（再次导出时替换掉） */
   assetIds: ID[]
   createdAt: ISODate
   updatedAt: ISODate
@@ -125,7 +134,9 @@ export const DEFAULT_SPRITE_PARAMS: SpriteActionParams = {
   watermark: 'auto',
   despill: true,
   alphaThreshold: 0.5,
-  scaleTweak: 1
+  scaleTweak: 1,
+  height: null,
+  colors: null
 }
 
 export const DEFAULT_SPRITE_SETTINGS: SpriteSettings = {
@@ -222,10 +233,12 @@ export interface SpriteExportAction {
 export interface SpriteExportBundle {
   /** 角色名（已经是安全的文件名） */
   name: string
-  /** 共享调色板 '#rrggbb' */
+  /** 共享调色板 '#rrggbb'（单独设了颜色数的动作，调色板在它的 meta.palette 里） */
   palette: string[]
-  /** 输出像素 ÷ 源像素 */
+  /** 输出像素 ÷ 源像素（含导出放大倍数） */
   pixelScale: number
+  /** 导出放大倍数（帧尺寸、落脚点都已经乘过） */
+  exportScale: number
   /** 所有动作对齐用的公共画布：每个动作的单元格放进去时落脚点重合 */
   canvas: { width: number; height: number; pivot: [number, number] }
   actions: SpriteExportAction[]

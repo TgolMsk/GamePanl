@@ -1,6 +1,6 @@
 import { Fragment, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import type { ProjectSummary } from '@shared/types'
-import { useLibImages, useLibModels, useProjects, usePrompts, useStyles } from '../app/data'
+import { useLibImages, useLibModels, useProjects, usePrompts, useSpriteCharacters, useStyles } from '../app/data'
 import { go, useNav, type LibraryTab, type ProjectTab } from '../app/nav'
 import { cx } from '../ui/cx'
 import { Icon, type IconName } from '../ui/Icon'
@@ -44,16 +44,18 @@ function countOf(r: { loading: boolean; error: string | null; data: readonly unk
 const LIBRARY_ITEMS: ReadonlyArray<{ tab: LibraryTab; icon: IconName; label: string }> = [
   { tab: 'images', icon: 'photo', label: '图片素材' },
   { tab: 'models', icon: 'cube', label: '3D 模型' },
+  { tab: 'sprites', icon: 'film', label: '序列帧' },
   { tab: 'prompts', icon: 'text', label: '提示词' },
   { tab: 'styles', icon: 'palette', label: '风格' }
 ]
 
-/** 访达式侧栏：全局库四项 + 项目列表（当前项目展开出配置 / 构思 / 资料 / 3D 模型）+ 新建项目 */
+/** 访达式侧栏：全局库五项 + 项目列表（当前项目展开出配置 / 构思 / 资料 / 3D 模型 / 序列帧）+ 新建项目 */
 export function Sidebar(): React.JSX.Element {
   const route = useNav((s) => s.route)
   const lastProjectId = useNav((s) => s.lastProjectId)
   const images = useLibImages()
   const models = useLibModels()
+  const sprites = useSpriteCharacters(null)
   const prompts = usePrompts()
   const styles = useStyles()
   const projects = useProjects()
@@ -63,6 +65,7 @@ export function Sidebar(): React.JSX.Element {
   const counts: Record<LibraryTab, number | undefined> = {
     images: countOf(images),
     models: countOf(models),
+    sprites: countOf(sprites),
     prompts: countOf(prompts),
     styles: countOf(styles)
   }
