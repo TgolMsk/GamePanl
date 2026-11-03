@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { GpApi } from '@shared/api'
-import { APP_COMMAND_CHANNEL, DATA_CHANGED_CHANNEL, UPDATE_STATE_CHANNEL } from '@shared/api'
+import { APP_COMMAND_CHANNEL, DATA_CHANGED_CHANNEL, SPRITE_EVENT_CHANNEL, UPDATE_STATE_CHANNEL } from '@shared/api'
+import type { SpriteEvent } from '@shared/spriteGen'
 import type { AppCommand, DataChange, UpdateState } from '@shared/types'
 
 const call =
@@ -70,7 +71,21 @@ const api: GpApi = {
   sprites: {
     list: call('sprites:list') as GpApi['sprites']['list'],
     create: call('sprites:create') as GpApi['sprites']['create'],
+    createBlank: call('sprites:createBlank') as GpApi['sprites']['createBlank'],
     addActions: call('sprites:addActions') as GpApi['sprites']['addActions'],
+    addRefsFromClipboard: call('sprites:addRefsFromClipboard') as GpApi['sprites']['addRefsFromClipboard'],
+    applyActionList: call('sprites:applyActionList') as GpApi['sprites']['applyActionList'],
+    stylePrompt: call('sprites:stylePrompt') as GpApi['sprites']['stylePrompt'],
+    expect: call('sprites:expect') as GpApi['sprites']['expect'],
+    waiting: call('sprites:waiting') as GpApi['sprites']['waiting'],
+    genSettings: call('sprites:genSettings') as GpApi['sprites']['genSettings'],
+    setGenSettings: call('sprites:setGenSettings') as GpApi['sprites']['setGenSettings'],
+    genTools: call('sprites:genTools') as GpApi['sprites']['genTools'],
+    generateVideos: call('sprites:generateVideos') as GpApi['sprites']['generateVideos'],
+    generateImage: call('sprites:generateImage') as GpApi['sprites']['generateImage'],
+    jobs: call('sprites:jobs') as GpApi['sprites']['jobs'],
+    cancelJob: call('sprites:cancelJob') as GpApi['sprites']['cancelJob'],
+    clearJobs: call('sprites:clearJobs') as GpApi['sprites']['clearJobs'],
     addRefs: call('sprites:addRefs') as GpApi['sprites']['addRefs'],
     addRefsFromImages: call('sprites:addRefsFromImages') as GpApi['sprites']['addRefsFromImages'],
     deleteRef: call('sprites:deleteRef') as GpApi['sprites']['deleteRef'],
@@ -128,6 +143,11 @@ const api: GpApi = {
     const handler = (_e: Electron.IpcRendererEvent, command: AppCommand): void => listener(command)
     ipcRenderer.on(APP_COMMAND_CHANNEL, handler)
     return () => ipcRenderer.removeListener(APP_COMMAND_CHANNEL, handler)
+  },
+  onSpriteEvent: (listener) => {
+    const handler = (_e: Electron.IpcRendererEvent, event: SpriteEvent): void => listener(event)
+    ipcRenderer.on(SPRITE_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(SPRITE_EVENT_CHANNEL, handler)
   },
   onDataChanged: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, change: DataChange): void => listener(change)

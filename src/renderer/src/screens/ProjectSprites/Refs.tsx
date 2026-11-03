@@ -6,6 +6,7 @@ import { LibraryPickerSheet } from '@renderer/screens/ProjectAssets/LibraryPicke
 import { Button, ConfirmSheet, Icon, Segmented, TextArea } from '@renderer/ui'
 import { spriteRefUrl, type SpriteRefsResult } from '@shared/api'
 import { anchorRef, SPRITE_FACING_LABELS, SPRITE_VIEW_LABELS, viewFacings, type SpriteCharacter, type SpriteFacing, type SpriteOwner, type SpriteRef, type SpriteView } from '@shared/sprites'
+import { Design } from './Design'
 import { useSpriteAutosave } from './useSpriteAutosave'
 
 export interface RefsProps {
@@ -16,13 +17,14 @@ export interface RefsProps {
   onTemplate: () => void
   /** 做 / 重做某个朝向的定妆照 */
   onAnchor: (facing: SpriteFacing) => void
+  onJobs: () => void
 }
 
 export function Refs(props: RefsProps): React.JSX.Element {
   return <RefsContent key={`${props.owner ?? 'library'}:${props.ch.id}`} {...props} />
 }
 
-function RefsContent({ owner, ch, onChange, onSelectAction, onTemplate, onAnchor }: RefsProps): React.JSX.Element {
+function RefsContent({ owner, ch, onChange, onSelectAction, onTemplate, onAnchor, onJobs }: RefsProps): React.JSX.Element {
   const [picker, setPicker] = useState(false)
   const [remove, setRemove] = useState<SpriteRef | null>(null)
   const [busy, setBusy] = useState(false)
@@ -95,7 +97,7 @@ function RefsContent({ owner, ch, onChange, onSelectAction, onTemplate, onAnchor
         ) : (
           <div className="sp-ref-empty">
             <Icon name="photo" size={36} strokeWidth={1.3} />
-            <p>拖入立绘、三视图等人物图，作为生成动作视频的参考图</p>
+            <p>拖入或 ⌘V 粘贴立绘、三视图等人物图；没有的话，用下面的「AI 画人物图」按描述画一张</p>
             <Button icon="plus" disabled={busy} onClick={() => void add()}>添加人物图…</Button>
             <Button variant="plain" onClick={() => setPicker(true)}>从全局库选…</Button>
           </div>
@@ -112,6 +114,7 @@ function RefsContent({ owner, ch, onChange, onSelectAction, onTemplate, onAnchor
           <div className="sp-autosave-status sp-note" role="status">{form.status}</div>
         </div>
       </div>
+      <Design owner={owner} ch={ch} draft={form.draft} onChange={onChange} onJobs={onJobs} />
       <div className="sp-ref-section-heading"><h3>定妆照</h3><span className="sp-note">每个动作都用定妆照当首帧去生成，角色才不会一个动作一个样</span></div>
       <div className="sp-anchor-row">
         {viewFacings(ch.view).map((facing) => {

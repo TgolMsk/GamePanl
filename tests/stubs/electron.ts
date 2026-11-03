@@ -13,4 +13,8 @@ export const shell = {
 }
 export const clipboard = { write: () => undefined, writeText: () => undefined }
 export class ClipboardItem {}
-export const app = { getVersion: () => 'test', getPath: () => '/tmp' }
+// 设了 GAMEPANL_STUB_PATHS 时各个系统目录（userData、downloads…）放在它下面，测试不碰真实目录
+export const app = {
+  getVersion: () => 'test',
+  getPath: (name: string) => (process.env['GAMEPANL_STUB_PATHS'] ? `${process.env['GAMEPANL_STUB_PATHS']}/${name}` : '/tmp')
+}

@@ -20,6 +20,7 @@ import {
   type SpriteRef,
   type SpriteScreen
 } from '@shared/sprites'
+import { expectDownload, useGen } from './gen'
 
 /** 抠图在长边不超过这个尺寸上做（首帧图里人物高度最多 1000 多像素，够用） */
 const CUT_SIDE = 1024
@@ -79,15 +80,20 @@ export interface AnchorSheetProps {
   owner: SpriteOwner
   ch: SpriteCharacter
   facing: SpriteFacing
+  /** 先选这张人物图（刚画好、刚收进来的） */
+  from?: string | null
   onChange: (character: SpriteCharacter) => void
   onClose: () => void
+  onJobs: () => void
 }
 
-export function AnchorSheet({ owner, ch, facing, onChange, onClose }: AnchorSheetProps): React.JSX.Element {
+export function AnchorSheet({ owner, ch, facing, from: preferred = null, onChange, onClose, onJobs }: AnchorSheetProps): React.JSX.Element {
   const label = SPRITE_FACING_LABELS[facing]
   const current = anchorRef(ch, facing)
   const sources = ch.refs.filter((r) => !r.facing)
-  const initial = (current?.from && sources.find((r) => r.id === current.from)) || sources.find((r) => r.id === ch.mainRef) || sources[0] || null
+  const initial = (preferred && sources.find((r) => r.id === preferred)) || (current?.from && sources.find((r) => r.id === current.from)) || sources.find((r) => r.id === ch.mainRef) || sources[0] || null
+  const codex = useGen((s) => !!s.tools?.codex)
+  const inbox = useGen((s) => s.settings?.inbox ?? false)
   const [from, setFrom] = useState<string | null>(initial?.id ?? null)
   const [mode, setMode] = useState<'cut' | 'asis'>('cut')
   const [holes, setHoles] = useState(false)
@@ -153,9 +159,21 @@ export function AnchorSheet({ owner, ch, facing, onChange, onClose }: AnchorShee
   const copyPrompt = async (): Promise<void> => {
     try {
       await window.gp.clipboard.copyText(prompt)
-      hud.show('已复制定妆照提示词')
+      expectDownload(owner, ch.id, null, prompt)
+      hud.show(inbox ? '已复制定妆照提示词；画好下载的图片会自动放进人物素材' : '已复制定妆照提示词')
     } catch (err) {
       showError('复制失败', err)
+    }
+  }
+
+  const draw = async (): Promise<void> => {
+    try {
+      if (JSON.stringify(setup) !== JSON.stringify(ch.frameSetup)) onChange(await window.gp.sprites.update(owner, ch.id, { frameSetup: setup }))
+      await window.gp.sprites.generateImage(owner, ch.id, facing, 'anchor')
+      hud.show(`codex 开始画${label}定妆照草稿，画好后在提示里点「做成定妆照」`, { action: { label: '查看任务', run: onJobs } })
+      onClose()
+    } catch (err) {
+      showError('没能开始画图', err)
     }
   }
 
@@ -200,7 +218,7 @@ export function AnchorSheet({ owner, ch, facing, onChange, onClose }: AnchorShee
         <div className="sp-text-field"><span>底色</span><Segmented<SpriteScreen> value={setup.screen} ariaLabel="底色" options={(Object.keys(SPRITE_SCREENS) as SpriteScreen[]).map((s) => ({ value: s, label: SPRITE_SCREENS[s].label }))} onChange={(screen) => setSetup({ ...setup, screen })} /></div>
         <p className="sp-note">画幅、人物大小、底色整个角色共用，几张定妆照保持一致；提示词里的背景色也跟着改。</p>
         <div className="sp-text-field">
-          <div className="sp-field-heading"><span>没有合适的人物图时，让 AI 画一张</span><Button size="sm" icon="copy" onClick={() => void copyPrompt()}>复制</Button></div>
+          <div className="sp-field-heading"><span>没有合适的人物图时，让 AI 画一张</span><span className="sp-anchor-ai"><Button size="sm" icon="copy" onClick={() => void copyPrompt()}>复制</Button>{codex && sources.length > 0 && <Button size="sm" icon="sparkles" title="照着主图让本机 codex 画（ChatGPT 订阅自带的生图）" onClick={() => void draw()}>用 codex 画</Button>}</span></div>
           <TextArea className="sp-prompt-output" minRows={4} maxRows={7} value={prompt} readOnly aria-label="定妆照提示词" />
         </div>
       </div>

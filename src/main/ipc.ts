@@ -2,15 +2,18 @@
 // 修改数据的操作完成后向所有窗口广播 DATA_CHANGED_CHANNEL。
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, shell, systemPreferences } from 'electron'
 import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
-import { DATA_CHANGED_CHANNEL } from '@shared/api'
-import { SPRITE_REF_EXTENSIONS, SPRITE_VIDEO_EXTENSIONS, type SpriteOwner } from '@shared/sprites'
+import { DATA_CHANGED_CHANNEL, SPRITE_EVENT_CHANNEL } from '@shared/api'
+import { SPRITE_FACING_LABELS, SPRITE_REF_EXTENSIONS, SPRITE_VIDEO_EXTENSIONS, type SpriteFacing, type SpriteOwner } from '@shared/sprites'
 import type { AppInfo, DataChange, ID, ImageRef, LibModel, LibAsset2D } from '@shared/types'
-import { copyImageToClipboard, IMPORT_EXTENSIONS } from './images'
+import { candidateFromClipboard, copyImageToClipboard, IMPORT_EXTENSIONS } from './images'
 import * as library from './library'
 import * as models from './models'
 import * as assets2d from './assets2d'
 import * as projects from './projects'
 import * as sprites from './sprites'
+import { connectSpriteEvents } from './spriteEvents'
+import * as spriteGen from './spriteGen'
+import * as spriteInbox from './spriteInbox'
 import { encodePng } from './spriteExport'
 import { resolveImage } from './protocol'
 import type { ResolvedImage } from './protocol'
@@ -500,7 +503,7 @@ export function registerIpc(): void {
     const files = await pickVideos(event, asOptionalPaths(paths), '导入动作视频和人物图')
     if (files.length === 0) return { created: [], merged: [], placed: [], refs: 0, skipped: [] }
     const o = opts === undefined || opts === null ? {} : asObject(opts, '导入选项')
-    const height = o['height'] === undefined || o['height'] === null ? undefined : asInt(o['height'], '像素身高', 8, 512)
+    const height = o['height'] === undefined || o['height'] === null ? await sprites.defaultHeight(pid) : asInt(o['height'], '像素身高', 8, 512)
     let target: sprites.ImportTarget | null = null
     if (o['target'] !== undefined && o['target'] !== null) {
       const t = asObject(o['target'], '导入目标')
@@ -519,6 +522,29 @@ export function registerIpc(): void {
     if (r.placed.length || r.refs) spritesChanged(pid)
     return r
   })
+  handle('sprites:createBlank', async (_e, projectId, name) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.createBlank(pid, name, await sprites.defaultHeight(pid))
+    spritesChanged(pid, true)
+    return c
+  })
+  handle('sprites:addRefsFromClipboard', async (_e, projectId, id) => {
+    const pid = await asOwner(projectId)
+    const cid = id === null || id === undefined ? null : asId(id, '角色 id')
+    const cand = await candidateFromClipboard()
+    if (!cand) return null
+    const r = await sprites.addRefImage(pid, cid, cand, await sprites.defaultHeight(pid))
+    if (r.ref) spritesChanged(pid, cid === null)
+    return { character: r.character, added: r.ref ? 1 : 0, skipped: r.ref ? [] : [{ path: cand.name, reason: `「${r.character.name}」的人物素材里已经有这张图了` }] }
+  })
+  handle('sprites:applyActionList', async (_e, projectId, id, fromProjectId, fromId) => {
+    const pid = await asOwner(projectId)
+    const from = await asOwner(fromProjectId)
+    const c = await sprites.applyActionList(pid, asId(id, '角色 id'), from, asId(fromId, '角色 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:stylePrompt', async (_e, projectId) => sprites.stylePrompt(await asOwner(projectId)))
   handle('sprites:addRefs', async (event, projectId, id, paths) => {
     const pid = await asOwner(projectId)
     const cid = asId(id, '角色 id')
@@ -617,7 +643,7 @@ export function registerIpc(): void {
     const pid = await asOwner(projectId)
     const asset = await findAsset2D(assetId)
     const files = await assets2d.characterImages(asset.id)
-    const c = await sprites.createFromImages(pid, asset.name, files, asset.id)
+    const c = await sprites.createFromImages(pid, asset.name, files, asset.id, await sprites.defaultHeight(pid))
     spritesChanged(pid, true)
     return c
   })
@@ -682,6 +708,44 @@ export function registerIpc(): void {
     const png = encodePng(rgba, asInt(width, '宽', 1, 16384), asInt(height, '高', 1, 16384))
     await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })])
   })
+
+  // ---------- 序列帧 · 软件里生成、从「下载」收件 ----------
+  connectSpriteEvents(
+    (event) => {
+      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(SPRITE_EVENT_CHANNEL, event)
+    },
+    (owner) => spritesChanged(owner)
+  )
+  const asFacingArg = (v: unknown): SpriteFacing => {
+    if (typeof v !== 'string' || !Object.prototype.hasOwnProperty.call(SPRITE_FACING_LABELS, v)) fail('朝向不对')
+    return v as SpriteFacing
+  }
+  handle('sprites:expect', async (_e, projectId, id, actionId, prompt) => {
+    const pid = await asOwner(projectId)
+    const aid = actionId === null || actionId === undefined ? null : asId(actionId, '动作 id')
+    await spriteInbox.expect(pid, asId(id, '角色 id'), aid, asString(prompt, '提示词', 20_000))
+  })
+  handle('sprites:waiting', () => spriteInbox.waiting())
+  handle('sprites:genSettings', () => spriteGen.genSettings())
+  handle('sprites:setGenSettings', async (_e, patch) => {
+    const s = await spriteGen.setGenSettings(patch)
+    if (!s.inbox) spriteInbox.stopInbox()
+    return s
+  })
+  handle('sprites:genTools', () => spriteGen.tools())
+  handle('sprites:generateVideos', async (_e, projectId, id, actionIds, takes) => {
+    const pid = await asOwner(projectId)
+    const n = takes === undefined || takes === null ? undefined : asInt(takes, '版本数', 1, 4)
+    return spriteGen.generateVideos(pid, asId(id, '角色 id'), asIds(actionIds, '动作 id'), n)
+  })
+  handle('sprites:generateImage', async (_e, projectId, id, facing, mode) => {
+    const pid = await asOwner(projectId)
+    if (mode !== 'design' && mode !== 'anchor') fail('生图方式不对')
+    return spriteGen.generateImage(pid, asId(id, '角色 id'), asFacingArg(facing), mode)
+  })
+  handle('sprites:jobs', () => spriteGen.listJobs())
+  handle('sprites:cancelJob', (_e, jobId) => spriteGen.cancelJob(asId(jobId, '任务 id')))
+  handle('sprites:clearJobs', () => spriteGen.clearJobs())
 
   // ---------- 剪贴板 / 访达 ----------
   handle('clipboard:copyImage', async (_e, ref) => {

@@ -908,3 +908,110 @@
   justify-content: flex-end;
   max-width: 420px;
 }
+
+/* ---------- 制作流程条：设定 → 定妆照 → 动作清单 → 生成视频 → 拆帧质检 → 保存 ---------- */
+.sp-flow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--sep);
+  background: var(--bg2);
+}
+.sp-flow-steps {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sp-flow-steps > li { flex: none; display: flex; align-items: center; }
+.sp-flow-steps > li + li::before { content: ''; width: 10px; height: 0.5px; margin: 0 2px; background: var(--sep); }
+.sp-flow-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 9px 0 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--tx2);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.sp-flow-step:hover { background: var(--fill2); color: var(--tx); }
+.sp-flow-step:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+.sp-flow-step .no {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--sep);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sp-flow-step.is-done .no { background: var(--ok); color: white; box-shadow: none; }
+.sp-flow-step.current { color: var(--tx); }
+.sp-flow-step.current .no { background: var(--acc); color: white; box-shadow: none; }
+.sp-flow-step .tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.2; }
+.sp-flow-step .nm { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.sp-flow-step .dt { max-width: 120px; overflow: hidden; color: var(--tx2); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sp-flow-actions { flex: none; display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.sp-flow-actions > .btn { white-space: nowrap; }
+
+/* ---------- 软件里生成、自动收件 ---------- */
+.sp-generate-tools { display: flex; align-items: center; gap: 10px; }
+.sp-generate-tools .btn .icon { margin-left: 2px; }
+.sp-generate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sp-generate-import .sp-generate-row > .btn { height: 34px; padding: 0 16px; }
+.sp-generate-import .sp-generate-row > .btn.plain { height: 24px; padding: 0 6px; }
+.sp-generate-waiting {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--acc-text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.sp-design { display: flex; flex-direction: column; gap: 10px; margin: 0 0 26px; padding: 14px 16px; border-radius: var(--r-card); background: var(--fill2); }
+.sp-design .sp-ref-section-heading { margin: 0; }
+.sp-design .sp-ref-section-heading h3 { margin: 0; }
+.sp-design > .sp-note { margin: 0; line-height: 1.6; max-width: 72ch; }
+.sp-anchor-ai { display: flex; align-items: center; gap: 6px; }
+.sp-template-list-heading { margin: 14px 12px 4px; color: var(--tx2); font-size: 11px; font-weight: 500; }
+
+.sp-gen-settings { display: flex; flex-direction: column; gap: 16px; }
+.sp-gen-settings > .sp-note { margin: -4px 0 0; line-height: 1.6; }
+.sp-gen-tools { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: var(--r-card); background: var(--fill2); }
+.sp-gen-tool { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; font-size: 12px; }
+.sp-gen-tool .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); transform: translateY(-1px); }
+.sp-gen-tool .dot.ok { background: var(--ok); }
+.sp-gen-tool .nm { flex: none; font-weight: 500; }
+.sp-gen-tool .sp-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-gen-steppers { display: flex; flex-wrap: wrap; gap: 22px; }
+.sp-gen-stepper { display: flex; align-items: center; gap: 8px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.sp-gen-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.6; }
+.sp-gen-check input { flex: none; margin: 3px 0 0; accent-color: var(--acc); }
+
+.sp-job-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.sp-job { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 2px; border-bottom: 0.5px solid var(--sep); }
+.sp-job:last-child { border-bottom: 0; }
+.sp-job-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.sp-job-main .nm { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.sp-job-main .sp-note { line-height: 1.5; overflow-wrap: anywhere; }
+.sp-job.is-failed .sp-job-main .sp-note { color: var(--danger); }
+.sp-job.is-running .sp-job-main .nm::after { content: ' …'; color: var(--tx2); }
+.sp-job > .btn { flex: none; }

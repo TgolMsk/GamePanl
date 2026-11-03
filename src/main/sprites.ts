@@ -19,6 +19,7 @@ import {
   SPRITE_STANDARD_GROUPS,
   SPRITE_TEMPLATES,
   SPRITE_VIDEO_EXTENSIONS,
+  stripCopySuffix,
   type SpriteAction,
   type SpriteActionParams,
   safeFileName,
@@ -37,13 +38,14 @@ import {
   type SpriteScreen,
   type SpriteSettings,
   type SpriteTake,
+  type SpriteTakeVia,
   type SpriteView
 } from '@shared/sprites'
 import type { ID, LibAsset2D } from '@shared/types'
 import { asset2dDir, saveSpriteAsset } from './assets2d'
 import { candidateFromFile, imageInfo, type Candidate } from './images'
-import { addLibraryImages, deleteImage } from './library'
-import { addProjectAssets, deleteAsset } from './projects'
+import { addLibraryImages, deleteImage, listStyles } from './library'
+import { addProjectAssets, deleteAsset, getProject } from './projects'
 import { actionPreviewGif, composeAtlas, encodePng, writeSpriteExport } from './spriteExport'
 import { exists, isNotFound, newId, nowIso, paths, readJson, trash, withLock, writeJson } from './storage'
 import { asBoolean, asId, asLine, asObject, asString, fail, has, isSafeId } from './validate'
@@ -174,7 +176,16 @@ export function isRefImage(path: string): boolean {
   return SPRITE_REF_EXTENSIONS.includes(extname(path).slice(1).toLowerCase())
 }
 
-async function copyVideo(owner: SpriteOwner, charId: ID, file: string): Promise<SpriteTake> {
+/** 版本的来历：提示词、来源；sourceName 不给时用原文件名 */
+export interface TakeOrigin {
+  prompt: string
+  via: SpriteTakeVia
+  sourceName?: string
+}
+
+const FROM_FILE: TakeOrigin = { prompt: '', via: 'file' }
+
+async function copyVideo(owner: SpriteOwner, charId: ID, file: string, origin: TakeOrigin = FROM_FILE): Promise<SpriteTake> {
   const st = await fs.stat(file)
   if (!st.isFile()) fail(`不是文件：${basename(file)}`)
   if (st.size > MAX_VIDEO_BYTES) fail(`视频太大了（超过 1 GB）：${basename(file)}`)
@@ -184,7 +195,18 @@ async function copyVideo(owner: SpriteOwner, charId: ID, file: string): Promise<
   const dir = spritePaths.videos(owner, charId)
   await fs.mkdir(dir, { recursive: true })
   await fs.copyFile(file, join(dir, video))
-  return { id, video, sourceName: basename(file), bytes: st.size, start: null, end: null, edits: [], addedAt: nowIso() }
+  return {
+    id,
+    video,
+    sourceName: origin.sourceName ?? basename(file),
+    bytes: st.size,
+    start: null,
+    end: null,
+    edits: [],
+    prompt: origin.prompt.slice(0, 8000),
+    via: origin.via,
+    addedAt: nowIso()
+  }
 }
 
 function newAction(name: string, group: ID | null, brief = ''): SpriteAction {
@@ -234,9 +256,10 @@ function ensureGroup(c: SpriteCharacter, name: string): ID {
   return g.id
 }
 
-/** 同一个角色里已经导入过的视频（同文件名、同大小）不重复导入 */
+/** 同一个角色里已经导入过的视频（同文件名、同大小）不重复导入；浏览器重复下载加的「 (1)」不算不同 */
 function alreadyHas(c: SpriteCharacter, name: string, bytes: number): SpriteAction | undefined {
-  return c.actions.find((a) => a.takes.some((t) => t.sourceName === name && t.bytes === bytes))
+  const n = stripCopySuffix(name)
+  return c.actions.find((a) => a.takes.some((t) => t.bytes === bytes && stripCopySuffix(t.sourceName) === n))
 }
 
 export type Skipped = Array<{ path: string; reason: string }>
@@ -301,6 +324,20 @@ async function placeVideos(owner: SpriteOwner, c: SpriteCharacter, files: string
   return placed
 }
 
+/** 一张图写进 refs/（同名、同大小的不重复，返回 null）；还没有主图时它当主图 */
+async function placeRefCandidate(owner: SpriteOwner, c: SpriteCharacter, cand: Candidate): Promise<SpriteRef | null> {
+  if (c.refs.some((r) => r.name === cand.name.slice(0, 80) && r.bytes === cand.buf.length)) return null
+  const id = newId()
+  const file = `${id}.${cand.info.ext}`
+  const dir = spritePaths.refs(owner, c.id)
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(join(dir, file), cand.buf)
+  const ref: SpriteRef = { id, file, name: cand.name.slice(0, 80), width: cand.info.width, height: cand.info.height, bytes: cand.buf.length, facing: null, from: null, addedAt: nowIso() }
+  c.refs.push(ref)
+  if (!c.mainRef) c.mainRef = ref.id
+  return ref
+}
+
 /** 人物素材拷进 refs/（同文件名、同大小的不重复）；还没有主图时第一张当主图 */
 async function placeRefs(owner: SpriteOwner, c: SpriteCharacter, files: string[], skipped: Skipped): Promise<SpriteRef[]> {
   const added: SpriteRef[] = []
@@ -310,18 +347,9 @@ async function placeRefs(owner: SpriteOwner, c: SpriteCharacter, files: string[]
       skipped.push({ path: f, reason: '不是图片（只支持 PNG、JPG、WebP）' })
       continue
     }
-    if (c.refs.some((r) => r.name === cand.name && r.bytes === cand.buf.length)) {
-      skipped.push({ path: f, reason: `「${c.name}」的人物素材里已经有这张图了` })
-      continue
-    }
-    const id = newId()
-    const file = `${id}.${cand.info.ext}`
-    const dir = spritePaths.refs(owner, c.id)
-    await fs.mkdir(dir, { recursive: true })
-    await fs.writeFile(join(dir, file), cand.buf)
-    const ref: SpriteRef = { id, file, name: cand.name.slice(0, 80), width: cand.info.width, height: cand.info.height, bytes: cand.buf.length, facing: null, from: null, addedAt: nowIso() }
-    c.refs.push(ref)
-    added.push(ref)
+    const ref = await placeRefCandidate(owner, c, cand)
+    if (ref) added.push(ref)
+    else skipped.push({ path: f, reason: `「${c.name}」的人物素材里已经有这张图了` })
   }
   if (!c.mainRef && c.refs.length) c.mainRef = c.refs[0].id
   return added
@@ -478,6 +506,92 @@ export async function createFromImages(owner: SpriteOwner, name: string, images:
   }
   await writeJson(spritePaths.file(owner, id), c)
   return c
+}
+
+/** 项目里新建角色的默认像素身高：项目配置的角色尺寸（高）；全局库用内置默认 */
+export async function defaultHeight(owner: SpriteOwner): Promise<number | undefined> {
+  if (owner === null) return undefined
+  const h = (await getProject(owner)).sizes?.character?.h
+  return typeof h === 'number' && Number.isFinite(h) && h >= 8 ? Math.min(512, Math.round(h)) : undefined
+}
+
+/** 项目选的美术风格的生图提示词（写进设定图提示词）；全局库或没选风格时为空 */
+export async function stylePrompt(owner: SpriteOwner): Promise<string> {
+  if (owner === null) return ''
+  const p = await getProject(owner)
+  if (!p.styleId) return ''
+  const s = (await listStyles()).find((x) => x.id === p.styleId)
+  return s ? s.prompt.trim() || s.desc.trim() : ''
+}
+
+/** 新建空角色：先写描述、复制设定图提示词去画，人物图和视频之后再加 */
+export async function createBlank(owner: SpriteOwner, rawName: unknown, height?: number): Promise<SpriteCharacter> {
+  const existing = await listCharacters(owner)
+  const name = rawName === undefined || rawName === null ? '' : asLine(rawName, '角色名', 80).trim()
+  const c = blankCharacter(newId(), uniqueName(name || `角色 ${existing.length + 1}`, existing.map((x) => x.name)), height)
+  await writeJson(spritePaths.file(owner, c.id), c)
+  return c
+}
+
+/** 一张图（粘贴的、生成的）加进人物素材；id 为 null 时用它新建角色。已经有同一张图时 added 为 0 */
+export async function addRefImage(owner: SpriteOwner, id: ID | null, cand: Candidate, height?: number): Promise<{ character: SpriteCharacter; ref: SpriteRef | null }> {
+  if (!SPRITE_REF_EXTENSIONS.includes(cand.info.ext)) fail('不是图片（只支持 PNG、JPG、WebP）')
+  if (id === null) {
+    const c = await createBlank(owner, null, height)
+    const ref = await placeRefCandidate(owner, c, cand)
+    await writeJson(spritePaths.file(owner, c.id), c)
+    return { character: c, ref }
+  }
+  let ref: SpriteRef | null = null
+  const character = await mutate(owner, id, async (c) => {
+    ref = await placeRefCandidate(owner, c, cand)
+  })
+  return { character, ref }
+}
+
+/**
+ * 视频文件加成动作的一个新版本（从「下载」收件、软件里生成）。
+ * 动作还没有视频、或 activate 时切到这个版本。同一个视频已经收过时返回 null。
+ */
+export async function addTakeFile(owner: SpriteOwner, id: ID, actionId: ID, file: string, origin: TakeOrigin, activate: boolean): Promise<{ character: SpriteCharacter; action: SpriteAction; take: SpriteTake } | null> {
+  let hit: { action: SpriteAction; take: SpriteTake } | null = null
+  const character = await mutate(owner, id, async (c) => {
+    const a = c.actions.find((x) => x.id === actionId)
+    if (!a) fail('动作不存在了')
+    const st = await fs.stat(file)
+    if (alreadyHas(c, origin.sourceName ?? basename(file), st.size)) return
+    const take = await copyVideo(owner, c.id, file, origin)
+    a.takes.push(take)
+    if (activate || !a.video) activateTake(a, take)
+    hit = { action: a, take }
+  })
+  const r = hit as { action: SpriteAction; take: SpriteTake } | null
+  return r ? { character, ...r } : null
+}
+
+/** 照搬另一个角色的动作清单：分组、动作名、动作说明、循环 / 单次（视频不搬），视角也照搬；已有的同名动作只补分组和说明 */
+export async function applyActionList(owner: SpriteOwner, id: ID, fromOwner: SpriteOwner, fromId: ID): Promise<SpriteCharacter> {
+  if (owner === fromOwner && id === fromId) fail('选的是同一个角色')
+  const src = await getCharacter(fromOwner, fromId)
+  if (src.actions.length === 0) fail(`「${src.name}」还没有动作`)
+  return mutate(owner, id, (c) => {
+    c.view = src.view
+    for (const g of src.groups) ensureGroup(c, g.name)
+    for (const sa of src.actions) {
+      const gName = src.groups.find((g) => g.id === sa.group)?.name
+      const group = gName ? ensureGroup(c, gName) : null
+      const same = c.actions.find((a) => a.name.toLowerCase() === sa.name.toLowerCase())
+      if (same) {
+        if (!same.group) same.group = group
+        if (!same.brief) same.brief = sa.brief
+        if (same.params.kind === 'auto') same.params.kind = sa.params.kind
+        continue
+      }
+      const a = newAction(sa.name, group, sa.brief)
+      a.params.kind = sa.params.kind
+      c.actions.push(a)
+    }
+  })
 }
 
 // ---------- 修改 ----------
@@ -933,6 +1047,8 @@ function normalizeTake(raw: unknown): SpriteTake | null {
     start: opt(t['start']),
     end: opt(t['end']),
     edits: Array.isArray(t['edits']) ? normalizeEdits(t['edits']) : [],
+    prompt: typeof t['prompt'] === 'string' ? t['prompt'] : '',
+    via: t['via'] === 'inbox' || t['via'] === 'generate' ? t['via'] : 'file',
     addedAt: typeof t['addedAt'] === 'string' ? t['addedAt'] : nowIso()
   }
 }
@@ -997,7 +1113,7 @@ function normalizeCharacter(raw: Record<string, unknown>, id: ID): SpriteCharact
     let takes = (Array.isArray(a['takes']) ? a['takes'] : []).map(normalizeTake).filter((t): t is SpriteTake => t !== null)
     // 早期的动作只有一个视频：当成唯一的版本
     if (video && !takes.some((t) => t.video === video)) {
-      takes = [...takes, { id: a['id'] as string, video, sourceName, bytes, start: params.start, end: params.end, edits, addedAt }]
+      takes = [...takes, { id: a['id'] as string, video, sourceName, bytes, start: params.start, end: params.end, edits, prompt: '', via: 'file', addedAt }]
     }
     const name = typeof a['name'] === 'string' && a['name'] ? a['name'] : '动作'
     let group: ID | null = typeof a['group'] === 'string' && groups.some((g) => g.id === a['group']) ? a['group'] : null

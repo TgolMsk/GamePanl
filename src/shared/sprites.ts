@@ -83,6 +83,9 @@ export interface SpriteFrameEdit {
   to: number | null
 }
 
+/** 版本从哪来：file 手动导入；inbox 复制提示词后从「下载」自动收进来；generate 在软件里生成 */
+export type SpriteTakeVia = 'file' | 'inbox' | 'generate'
+
 /** 动作的一个视频版本；片段起止和换帧记录跟着视频走，切换版本时各自保留 */
 export interface SpriteTake {
   id: ID
@@ -93,6 +96,9 @@ export interface SpriteTake {
   start: number | null
   end: number | null
   edits: SpriteFrameEdit[]
+  /** 生成这个版本用的提示词（软件里生成、或复制提示词后收进来的）；不知道时为空 */
+  prompt: string
+  via: SpriteTakeVia
   addedAt: ISODate
 }
 
@@ -499,60 +505,93 @@ export interface SpritePrompt {
 }
 
 /**
- * 给图生视频工具（Muse、可灵、即梦、Wan…）用的提示词。有定妆照时以它为首帧：单次动作首尾帧都用它，
- * 动作从同一个站姿开始、回到同一个站姿；循环和死亡动作只用首帧。没有定妆照时以人物主图为参考图。
- * 都写清动作、视角朝向，以及抠图需要的纯色背景、固定机位、全身入画、原地动作。
+ * 给图生视频工具（Muse、可灵、即梦、万相…）用的提示词，分段写清主体、动作、机位、构图、背景、光照、一致性。
+ * 第一行是动作标签（见 actionTag），下载的文件名会带上它，导回时自动归到这个动作。
+ * 有定妆照时以它为首帧：单次动作首尾帧都用它，从同一个站姿开始、回到同一个站姿；循环和死亡动作只用首帧。
+ * 没有定妆照时以人物主图为参考图。
  */
 export function buildSpritePrompt(
   ch: Pick<SpriteCharacter, 'description' | 'view' | 'promptExtra' | 'refs' | 'frameSetup'>,
-  a: Pick<SpriteAction, 'name' | 'brief' | 'params'>
+  a: Pick<SpriteAction, 'id' | 'name' | 'brief' | 'params'>
 ): SpritePrompt {
   const kind = actionLoopKind(a)
   const death = isDeathAction(a.name)
   const brief = (a.brief.trim() || defaultBrief(a.name) || a.name).replace(/[。.]$/, '')
   const anchor = anchorRef(ch, actionFacing(ch.view, a.name))
   const dirWord = fileNameTokens(a.name).map((x) => x.toLowerCase()).find(isDirectionWord)
-  const facing = anchor ? '朝向和首帧图一致' : ((dirWord && DIRECTION_TEXT[dirWord]) ?? (ch.view === 'side' ? FACING_TEXT.side : FACING_TEXT.front))
+  const facing = (dirWord && DIRECTION_TEXT[dirWord]) ?? (ch.view === 'side' ? FACING_TEXT.side : FACING_TEXT.front)
   const lastFrame = !!anchor && kind === 'once' && !death
   const ending = anchor
     ? kind === 'loop'
-      ? '从首帧的站姿起势，进入循环动作；循环的首尾姿势完全一致，可以无缝衔接。'
+      ? '从首帧的站姿起势进入循环动作，以恒定节奏连续重复，直到视频结束；循环的首尾姿势完全一致，可以无缝循环。'
       : death
-        ? '从首帧的站姿开始，最后倒地静止。'
+        ? '从首帧的站姿开始，最后倒地静止，保持到视频结束。'
         : lastFrame
-          ? '首帧和尾帧是同一个站姿：从这个站姿开始做动作，最后回到完全相同的站姿。'
+          ? '动作只做一遍：首帧和尾帧是同一个站姿，从这个站姿开始做动作，最后回到完全相同的站姿。'
           : '从首帧的站姿开始做动作。'
     : kind === 'loop'
-      ? '动作首尾姿势完全一致，可以无缝循环。'
+      ? '以恒定节奏连续重复这个循环，直到视频结束；动作首尾姿势完全一致，可以无缝循环。'
       : death
-        ? '从站立姿势开始，最后倒地静止。'
+        ? '从站立姿势开始，最后倒地静止，保持到视频结束。'
         : kind === 'once'
-          ? '从站立备战姿势开始，做完动作回到站立姿势。'
+          ? '动作只做一遍：从站立备战姿势开始，做完回到站立姿势。'
           : ''
   const desc = ch.description.trim().replace(/[。.]$/, '')
   const screen = SPRITE_SCREENS[ch.frameSetup.screen].text
-  const subject = anchor ? '首帧图中的角色' : '参考图中的角色'
+  const source = anchor ? '首帧图' : '参考图'
   const lines = [
-    `${subject}${desc ? `：${desc}` : ''}。`,
-    `动作：${brief}。${ending}`,
-    `镜头：${viewText(ch.view)}，${facing}；固定机位，镜头不推拉、不摇移、不切换。`,
+    `[${actionTag(a)}]`,
     anchor
-      ? `画面：${screen}，干净平整，没有地面、阴影、场景和道具；角色的大小和位置与首帧图一致，全身始终完整入画；角色在原地做动作，不在画面里移动位置。`
-      : `画面：${screen}，干净平整，没有地面、阴影、场景和道具；角色全身完整地在画面正中，头顶和脚下都留出空白；角色在原地做动作，不在画面里移动位置。`,
-    `保持角色的造型、服装、发型和配色与${anchor ? '首帧图' : '参考图'}完全一致；不要特效光、文字、字幕、水印。`
+      ? `【主体】首帧图中的角色${desc ? `：${desc}` : ''}。整个视频里角色的朝向和首帧图一致。`
+      : `【主体】参考图中的角色${desc ? `：${desc}` : ''}。${facing}，整个视频保持这个朝向。`,
+    `【动作】${brief}。${ending}`,
+    `【机位】三脚架固定机位，整段视频镜头完全静止，不推拉、不摇移、不切换，一镜到底；${viewText(ch.view)}；长焦镜头，画面扁平，接近正交投影，没有透视畸变；高速快门，全身清晰对焦。`,
+    anchor
+      ? '【构图】角色的大小和位置与首帧图一致，每一帧都完整显示从头顶到脚底的全身；角色在原地做动作，身体在画面里的位置不变；双脚着地时始终踩在同一条看不见的水平地面线上。'
+      : '【构图】角色水平居中，身高约占画面高度的一半，每一帧都完整显示从头顶到脚底的全身，头顶和脚下都留出空白；角色在原地做动作，身体在画面里的位置不变；双脚着地时始终踩在同一条看不见的水平地面线上。',
+    `【背景】${screen}，平整均匀，每一帧从边缘到边缘完全一致；没有地面、阴影和任何环境元素，角色不投射阴影。`,
+    '【光照】正面平光，均匀无阴影，全程不变；曝光和白平衡恒定。',
+    `【一致性】每一帧的角色都和${source}完全一致：相同的脸、发型、身体比例、服装、颜色和配饰；武器始终在同一只手里，形状和长度不变；四肢轮廓分明，互不粘连。`,
+    '【动作质量】关键姿势清晰有力，带预备动作和跟随动作；节奏稳定；每一帧清晰锐利，没有动态模糊。',
+    '【画面纯净】画面里只有这一个角色；没有特效、粒子、尘土、拖尾、文字、字幕和水印。'
   ]
   if (ch.promptExtra.trim()) lines.push(ch.promptExtra.trim())
   return { prompt: lines.join('\n'), negative: SPRITE_NEGATIVE_PROMPT, seconds: '选最短时长（2–5 秒）', firstFrame: anchor, lastFrame }
 }
 
-/** 让生图工具画一张标准定妆照的提示词（人物图背景复杂、去不干净时用） */
+function poseLines(ch: Pick<SpriteCharacter, 'view' | 'frameSetup'>, facing: SpriteFacing): string[] {
+  const screen = SPRITE_SCREENS[ch.frameSetup.screen].text
+  return [
+    `【姿势】自然站立的待机姿势，双脚着地，手臂放松，武器拿在手里；${viewText(ch.view)}，${FACING_TEXT[facing]}。`,
+    `【构图】全身完整入画，角色在画面正中，身高约占画面高度的 ${Math.round(ch.frameSetup.fill * 100)}%，头顶和脚下都留出空白；画面比例 ${ch.frameSetup.aspect}。`,
+    `【背景】${screen}，纯色平整，从边缘到边缘完全一致；没有地面、阴影和任何环境元素；角色身上不要有接近背景色的颜色。`,
+    '【画面】只有这一个角色；不要文字、水印、边框和签名。'
+  ]
+}
+
+/**
+ * 从零画角色的提示词（还没有人物图时用）：直接画成能当定妆照的样子（纯色底、全身、待机站姿、画幅和视频一致），
+ * 画好就能拿去生成动作视频。style 是项目美术风格的生图提示词，没有时为空。
+ */
+export function buildDesignPrompt(ch: Pick<SpriteCharacter, 'description' | 'view' | 'promptExtra' | 'frameSetup'>, facing: SpriteFacing, style = ''): string {
+  const desc = ch.description.trim().replace(/[。.]$/, '')
+  const lines = [
+    '【用途】2D 游戏角色的定妆照：之后用它当首帧生成动作视频，再抽帧做成序列帧。',
+    `【角色】${desc ? `${desc}。` : '一个原创的游戏角色，外形按下面的风格设计。'}`,
+    ...(style.trim() ? [`【风格】${style.trim().replace(/[。.]$/, '')}。`] : []),
+    ...poseLines(ch, facing)
+  ]
+  if (ch.promptExtra.trim()) lines.push(ch.promptExtra.trim())
+  return lines.join('\n')
+}
+
+/** 让生图工具照着人物图画一张标准定妆照的提示词（人物图背景复杂、去不干净时用） */
 export function buildAnchorPrompt(ch: Pick<SpriteCharacter, 'description' | 'view' | 'promptExtra' | 'frameSetup'>, facing: SpriteFacing): string {
   const desc = ch.description.trim().replace(/[。.]$/, '')
   const lines = [
-    `参考图中的角色${desc ? `：${desc}` : ''}，画一张全身定妆照。`,
-    `姿势：自然站立的待机姿势，双脚着地，手臂放松，武器拿在手里；${viewText(ch.view)}，${FACING_TEXT[facing]}。`,
-    `画面：${SPRITE_SCREENS[ch.frameSetup.screen].text}，干净平整，没有地面、阴影、场景和道具；角色全身在画面正中，头顶和脚下都留出空白；画面比例 ${ch.frameSetup.aspect}。`,
-    '保持角色的造型、服装、发型、配色和画风与参考图完全一致；不要文字、水印、边框。'
+    '【用途】给参考图中的角色画一张定妆照：之后用它当首帧生成动作视频，再抽帧做成序列帧。',
+    `【角色】参考图中的角色${desc ? `：${desc}` : ''}。保持角色的造型、服装、发型、配色和画风与参考图完全一致。`,
+    ...poseLines(ch, facing)
   ]
   if (ch.promptExtra.trim()) lines.push(ch.promptExtra.trim())
   return lines.join('\n')
@@ -564,12 +603,47 @@ const DIRECTION_RE = new RegExp(`^(${SPRITE_DIRECTIONS.join('|')})$`, 'i')
 
 export const isDirectionWord = (t: string): boolean => DIRECTION_RE.test(t)
 
-/** 文件名拆成词（下划线、横线、空格、括号、点都算分隔） */
+/** 文件名拆成词（下划线、横线、空格、括号、点、中英文标点都算分隔；即梦把提示词开头当文件名，标签后面常紧跟中文标点） */
 export function fileNameTokens(fileName: string): string[] {
   return fileName
     .replace(/\.[^.]+$/, '')
-    .split(/[\s_\-.()（）[\]【】]+/)
+    .split(/[\s_\-.()（）[\]【】,，。:：;；、!！?？"“”'‘’「」『』《》#]+/)
     .filter(Boolean)
+}
+
+/** 同一个文件下载两次时浏览器加的「 (1)」去掉后的文件名 */
+export function stripCopySuffix(fileName: string): string {
+  return fileName.replace(/\s*[(（]\d{1,3}[)）](?=\.[^.]+$|$)/, '')
+}
+
+/**
+ * 写在视频提示词第一行的动作标签。生成网站下载的文件名会带上它：Muse 把提示词里的英文和数字按顺序连成文件名，
+ * 即梦把提示词开头一段当文件名。英文动作名直接用；中文动作名用 act-<动作 id 前 6 位>。
+ */
+export function actionTag(a: Pick<SpriteAction, 'id' | 'name'>): string {
+  return /^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(a.name) ? a.name : `act-${a.id.slice(0, 6)}`
+}
+
+/** 文件名里的动作标签对应哪个动作：取在文件名里出现得最早的，同一位置取词数最多的（walk_down 优先于 walk）；没有返回 null */
+export function actionFromTag<T extends Pick<SpriteAction, 'id' | 'name'>>(fileName: string, actions: readonly T[]): T | null {
+  const tokens = fileNameTokens(fileName).map((t) => t.toLowerCase())
+  let best: T | null = null
+  let bestAt = Infinity
+  let bestLen = 0
+  for (const a of actions) {
+    const kt = fileNameTokens(actionTag(a).toLowerCase())
+    if (kt.length === 0) continue
+    for (let i = 0; i + kt.length <= tokens.length && i <= bestAt; i++) {
+      if (!kt.every((t, k) => tokens[i + k] === t)) continue
+      if (i < bestAt || kt.length > bestLen) {
+        best = a
+        bestAt = i
+        bestLen = kt.length
+      }
+      break
+    }
+  }
+  return best
 }
 
 /**

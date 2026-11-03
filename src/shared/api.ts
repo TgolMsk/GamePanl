@@ -24,6 +24,7 @@ import type {
   UpdateState
 } from './types'
 import type { SpriteActionParams, SpriteActionPatch, SpriteCharacter, SpriteCharacterPatch, SpriteExportBundle, SpriteFacing, SpriteOwner } from './sprites'
+import type { SpriteEvent, SpriteGenSettings, SpriteGenTools, SpriteJob, SpriteWaiting } from './spriteGen'
 
 export type LibImagePatch = Partial<Pick<LibImage, 'name' | 'category' | 'tags'>>
 export type LibModelPatch = Partial<Pick<LibModel, 'name' | 'category' | 'tags'>>
@@ -197,8 +198,34 @@ export interface GpApi {
      * 否则算一个角色。和已有角色同名时加进那个角色。没给路径时弹出选择框
      */
     create(owner: SpriteOwner, paths?: string[], opts?: { height?: number; target?: { id: ID; actionId: ID | null } | null }): Promise<SpriteImportResult>
+    /** 新建空角色（还没有人物图，先写描述、复制设定图提示词去画）；项目里的角色默认像素身高取项目配置的角色尺寸 */
+    createBlank(owner: SpriteOwner, name?: string): Promise<SpriteCharacter>
     /** 给角色添加视频（按文件名归到动作；对不上又只有一个时放进 actionId）和人物图。没给路径时弹出选择框 */
     addActions(owner: SpriteOwner, id: ID, paths?: string[], actionId?: ID | null): Promise<SpriteAddResult>
+    /** 剪贴板里的图片加进人物素材；id 为 null 时用它新建一个角色。剪贴板里没有图片时返回 null */
+    addRefsFromClipboard(owner: SpriteOwner, id: ID | null): Promise<SpriteRefsResult | null>
+    /** 照搬另一个角色的动作清单（动作名、分组、动作说明、循环 / 单次），已有的同名动作跳过 */
+    applyActionList(owner: SpriteOwner, id: ID, fromOwner: SpriteOwner, fromId: ID): Promise<SpriteCharacter>
+    /** 项目美术风格的生图提示词（写进设定图提示词）；全局库或没选风格时为空 */
+    stylePrompt(owner: SpriteOwner): Promise<string>
+    /** 复制了提示词：开始等「下载」里的新文件。actionId 为 null 是等人物图；prompt 记到收进来的版本上 */
+    expect(owner: SpriteOwner, id: ID, actionId: ID | null, prompt: string): Promise<void>
+    /** 正在等收件的动作和角色 */
+    waiting(): Promise<SpriteWaiting[]>
+    /** 软件里生成的设置（模型、分辨率、时长、版本数、并发）和收件开关 */
+    genSettings(): Promise<SpriteGenSettings>
+    setGenSettings(patch: Partial<SpriteGenSettings>): Promise<SpriteGenSettings>
+    /** 本机找到的 bl（百炼）和 codex */
+    genTools(): Promise<SpriteGenTools>
+    /** 用定妆照当首帧（单次动作首尾帧都用）在百炼生成动作视频：每个动作 takes 个版本（默认按设置） */
+    generateVideos(owner: SpriteOwner, id: ID, actionIds: ID[], takes?: number): Promise<SpriteJob[]>
+    /** 用 codex 画人物图：design 按描述从零画设定图；anchor 照着主图画标准定妆照 */
+    generateImage(owner: SpriteOwner, id: ID, facing: SpriteFacing, mode: 'design' | 'anchor'): Promise<SpriteJob>
+    jobs(): Promise<SpriteJob[]>
+    /** 取消任务（已经交给百炼的任务取消后仍可能计费） */
+    cancelJob(jobId: ID): Promise<void>
+    /** 清掉已结束的任务 */
+    clearJobs(): Promise<void>
     /** 添加人物图（立绘、三视图、配件参考）。没给路径时弹出选择框 */
     addRefs(owner: SpriteOwner, id: ID, paths?: string[]): Promise<SpriteRefsResult>
     /** 从全局库图片 / 项目资料添加人物图 */
@@ -290,6 +317,8 @@ export interface GpApi {
   onUpdateState(listener: (state: UpdateState) => void): () => void
   /** 订阅应用菜单发来的命令（新建项目、新建笔记、添加图片、查找）；返回取消订阅函数 */
   onCommand(listener: (command: AppCommand) => void): () => void
+  /** 订阅序列帧的生成任务、等收件、收件事件；返回取消订阅函数 */
+  onSpriteEvent(listener: (event: SpriteEvent) => void): () => void
 }
 
 /** 图片地址：主进程注册的 gp:// 协议。thumb 给出缩略图的最长边像素，不给则是原图 */
@@ -342,3 +371,5 @@ export const DATA_CHANGED_CHANNEL = 'data:changed'
 export const UPDATE_STATE_CHANNEL = 'update:state'
 /** 应用菜单命令事件通道 */
 export const APP_COMMAND_CHANNEL = 'app:command'
+/** 序列帧生成任务、收件事件通道 */
+export const SPRITE_EVENT_CHANNEL = 'sprites:event'

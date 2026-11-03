@@ -1,6 +1,7 @@
 // 应用自身的设置（和项目数据无关），存在 Electron 的配置目录 userData/settings.json。
 import { app } from 'electron'
 import { join } from 'path'
+import type { SpriteGenSettings } from '@shared/spriteGen'
 import { readJson, updateJson } from './storage'
 
 export interface WindowBounds {
@@ -18,13 +19,16 @@ export interface AppSettings {
   lastUpdateCheckAt: string | null
   /** 上次关闭时的窗口位置和大小 */
   windowBounds: WindowBounds | null
+  /** 序列帧「在软件里生成」和自动收件的设置；读的时候由 spriteGen 补全 */
+  spriteGen: Partial<SpriteGenSettings> | null
 }
 
 const DEFAULTS: AppSettings = {
   autoCheckUpdates: true,
   skippedVersion: null,
   lastUpdateCheckAt: null,
-  windowBounds: null
+  windowBounds: null,
+  spriteGen: null
 }
 
 const file = (): string => join(app.getPath('userData'), 'settings.json')

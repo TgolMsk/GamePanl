@@ -2,7 +2,9 @@ import { hud } from '@renderer/app/hud'
 import { showError } from '@renderer/screens/Library/shared'
 import { Button, Icon, Segmented, Sheet, TextArea } from '@renderer/ui'
 import { spriteRefUrl } from '@shared/api'
-import { actionFacing, actionLoopKind, anchorRef, buildSpritePrompt, defaultBrief, SPRITE_FACING_LABELS, type SpriteAction, type SpriteActionParams, type SpriteCharacter, type SpriteFacing, type SpriteOwner } from '@shared/sprites'
+import { actionFacing, actionLoopKind, actionTag, anchorRef, buildSpritePrompt, defaultBrief, SPRITE_FACING_LABELS, type SpriteAction, type SpriteActionParams, type SpriteCharacter, type SpriteFacing, type SpriteOwner } from '@shared/sprites'
+import type { ID } from '@shared/types'
+import { activeJobs, costText, expectDownload, isWaiting, useGen } from './gen'
 import { useSpriteAutosave } from './useSpriteAutosave'
 
 export interface GenerateProps {
@@ -15,9 +17,19 @@ export interface GenerateProps {
   onImport: () => void
   /** 做 / 重做某个朝向的定妆照 */
   onAnchor: (facing: SpriteFacing) => void
+  /** 在软件里生成这些动作（先确认费用） */
+  onGenerate: (actionIds: ID[]) => void
+  /** 跳到下一个待生成的动作；没有别的待生成动作时为 null */
+  onNext: (() => void) | null
+  onJobs: () => void
 }
 
-export function Generate({ owner, ch, action, onChange, setParams, onRefs, onImport, onAnchor }: GenerateProps): React.JSX.Element {
+export function Generate({ owner, ch, action, onChange, setParams, onRefs, onImport, onAnchor, onGenerate, onNext, onJobs }: GenerateProps): React.JSX.Element {
+  const settings = useGen((s) => s.settings)
+  const tools = useGen((s) => s.tools)
+  const jobs = useGen((s) => s.jobs)
+  const running = activeJobs(jobs, owner, ch.id, action.id)
+  const waiting = useGen((s) => isWaiting(s.waiting, owner, ch.id, action.id))
   const facing = actionFacing(ch.view, action.name)
   const anchor = anchorRef(ch, facing)
   const main = anchor ?? ch.refs.find((ref) => ref.id === ch.mainRef)
@@ -31,11 +43,15 @@ export function Generate({ owner, ch, action, onChange, setParams, onRefs, onImp
     } catch (err) { showError('复制图片失败', err) }
   }
   const once = buildSpritePrompt(ch, action).lastFrame
+  const genBlocked = !anchor ? `先做${label}定妆照：软件里生成要用它当首帧` : !tools?.bl ? '没找到百炼命令行 bl：点右上角「生成设置」看怎么装' : null
   return (
     <section className="sp-generate" aria-label="生成动作视频">
       <header className="sp-generate-heading">
-        <div><h2>{action.name}</h2><span className="sp-note">{group} · 待生成</span></div>
-        <Segmented value={actionLoopKind(action) ?? 'auto'} ariaLabel="动作类型" options={[{ value: 'loop', label: '循环' }, { value: 'once', label: '单次' }]} onChange={(kind) => setParams({ kind })} />
+        <div><h2>{action.name}</h2><span className="sp-note">{group} · 待生成 · 动作标签 [{actionTag(action)}]</span></div>
+        <div className="sp-generate-tools">
+          <Segmented value={actionLoopKind(action) ?? 'auto'} ariaLabel="动作类型" options={[{ value: 'loop', label: '循环' }, { value: 'once', label: '单次' }]} onChange={(kind) => setParams({ kind })} />
+          {onNext && <Button size="sm" variant="plain" onClick={onNext}>下一个待生成<Icon name="chevron.right" size={12} /></Button>}
+        </div>
       </header>
       <div className="sp-generate-body">
         <aside className="sp-generate-ref">
@@ -57,7 +73,16 @@ export function Generate({ owner, ch, action, onChange, setParams, onRefs, onImp
         <PromptEditor key={`${owner ?? 'library'}:${ch.id}:${action.id}`} owner={owner} ch={ch} action={action} onChange={onChange} />
       </div>
       <footer className="sp-generate-import">
-        <Button variant="primary" icon="tray.down" onClick={onImport}>导入这个动作的视频…</Button>
+        <div className="sp-generate-row">
+          {settings && (
+            <Button variant="primary" icon="sparkles" disabled={!!genBlocked || running.length > 0} title={genBlocked ?? `用百炼万相生成 ${settings.takes} 个版本（${settings.resolution} · ${settings.duration} 秒），做好自动放进这个动作`} onClick={() => onGenerate([action.id])}>
+              {running.length ? `生成中 ${running.length} 个…` : `在软件里生成 ${settings.takes} 个版本 · ${costText(settings, settings.takes)}`}
+            </Button>
+          )}
+          <Button icon="tray.down" onClick={onImport}>导入这个动作的视频…</Button>
+          {running.length > 0 && <Button size="sm" variant="plain" onClick={onJobs}>查看任务</Button>}
+        </div>
+        {waiting && <p className="sp-generate-waiting" role="status"><Icon name="tray.down" size={13} />已复制提示词：两小时内「下载」里新出现的视频会自动放进这个动作（文件名带 {actionTag(action)} 的直接认出来）。</p>}
         <p className="sp-note">也可以直接把生成好的视频拖进窗口：选中这个动作时，拖入一个文件名对不上的视频会放进这里。</p>
       </footer>
     </section>
@@ -74,13 +99,21 @@ interface PromptEditorProps {
 function PromptEditor({ owner, ch, action, onChange }: PromptEditorProps): React.JSX.Element {
   const form = useSpriteAutosave({ brief: action.brief }, (draft) => window.gp.sprites.updateAction(owner, ch.id, action.id, draft), onChange)
   const prompt = buildSpritePrompt(ch, { ...action, brief: form.draft.brief })
+  const inbox = useGen((s) => s.settings?.inbox ?? false)
   const copy = async (text: string, label: string): Promise<void> => {
     try { await window.gp.clipboard.copyText(text); hud.show(`已复制${label}`) } catch (err) { showError('复制失败', err) }
+  }
+  const copyPrompt = async (): Promise<void> => {
+    try {
+      await window.gp.clipboard.copyText(prompt.prompt)
+      expectDownload(owner, ch.id, action.id, prompt.prompt)
+      hud.show(inbox ? `已复制提示词；生成后下载的视频会自动放进「${action.name}」` : '已复制提示词')
+    } catch (err) { showError('复制失败', err) }
   }
   return (
     <div className="sp-prompt-editor">
       <label className="sp-text-field"><span className="sp-field-heading"><span>动作说明</span><span className="sp-note" role="status">{form.status}</span></span><TextArea minRows={2} maxRows={5} maxLength={500} value={form.draft.brief} placeholder={defaultBrief(action.name) || '描述这个动作的起势、过程和收势'} onChange={(e) => form.edit({ brief: e.target.value })} onBlur={form.flush} /></label>
-      <div className="sp-text-field"><div className="sp-field-heading"><label htmlFor={`sp-prompt-${action.id}`}>提示词</label><Button size="sm" icon="copy" onClick={() => void copy(prompt.prompt, '提示词')}>复制提示词</Button></div><TextArea id={`sp-prompt-${action.id}`} className="sp-prompt-output" minRows={8} maxRows={14} value={prompt.prompt} readOnly /></div>
+      <div className="sp-text-field"><div className="sp-field-heading"><label htmlFor={`sp-prompt-${action.id}`}>提示词</label><Button size="sm" icon="copy" onClick={() => void copyPrompt()}>复制提示词</Button></div><TextArea id={`sp-prompt-${action.id}`} className="sp-prompt-output" minRows={8} maxRows={14} value={prompt.prompt} readOnly /></div>
       <div className="sp-text-field"><div className="sp-field-heading"><label htmlFor={`sp-negative-${action.id}`}>负面提示词</label><Button size="sm" icon="copy" onClick={() => void copy(prompt.negative, '负面提示词')}>复制</Button></div><TextArea id={`sp-negative-${action.id}`} className="sp-prompt-output" minRows={3} maxRows={5} value={prompt.negative} readOnly /></div>
       <p className="sp-note">{prompt.firstFrame
         ? `在生成网站：首帧放定妆照${prompt.lastFrame ? '，尾帧也放这张' : '，尾帧不放'}；参考图可以再放人物原图；画幅选 ${ch.frameSetup.aspect}；${prompt.seconds}。`

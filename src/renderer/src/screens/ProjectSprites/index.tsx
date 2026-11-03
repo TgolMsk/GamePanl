@@ -2,7 +2,7 @@ import './sprites.css'
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { menuSeparator, showContextMenu } from '@renderer/app/contextMenu'
 import { useProject, useSpriteCharacters } from '@renderer/app/data'
-import { useFileDrop } from '@renderer/app/drop'
+import { useFileDrop, usePasteImage } from '@renderer/app/drop'
 import { hud } from '@renderer/app/hud'
 import { isCmdKey, isPlainKey, useMainKeys } from '@renderer/screens/Library/keys'
 import { showError } from '@renderer/screens/Library/shared'
@@ -19,10 +19,14 @@ import {
 import { stripRgba } from '@renderer/sprites/pipeline'
 import { Button, ConfirmSheet, EmptyState, Icon, Sheet, TextField, Toolbar, cx } from '@renderer/ui'
 import { spriteRefUrl, type SpriteImportResult } from '@shared/api'
+import { SPRITE_VIDEO_MODELS, type SpriteJob } from '@shared/spriteGen'
 import type { ID } from '@shared/types'
 import type { SpriteAction, SpriteActionParams, SpriteCharacter, SpriteFacing, SpriteFrameEdit, SpriteOwner, SpriteSettings } from '@shared/sprites'
-import { buildSpritePrompt } from '@shared/sprites'
-import { sheetCols } from './bundle'
+import { anchorRef, buildSpritePrompt } from '@shared/sprites'
+import { buildPayload, sheetCols } from './bundle'
+import { FlowBar, neededFacings } from './FlowBar'
+import { costText, expectDownload, installGen, useGen } from './gen'
+import { GenSettingsSheet, JobsSheet } from './GenSheets'
 import { Inspector } from './Inspector'
 import { PixelBar } from './PixelBar'
 import { ExportSheet, WatermarkSheet } from './Sheets'
@@ -116,6 +120,13 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   /** 「从这个视频再抽一个动作」的原动作 */
   const [extractFrom, setExtractFrom] = useState<ID | null>(null)
   const [anchorFor, setAnchorFor] = useState<SpriteFacing | null>(null)
+  /** 定妆照编辑器先选的人物图（刚画好、刚收进来的） */
+  const [anchorFrom, setAnchorFrom] = useState<ID | null>(null)
+  const [genOpen, setGenOpen] = useState(false)
+  const [jobsOpen, setJobsOpen] = useState(false)
+  /** 等确认费用的一批待生成动作 */
+  const [confirmGen, setConfirmGen] = useState<ID[] | null>(null)
+  const genSettings = useGen((s) => s.settings)
   const [collapsed, setCollapsed] = useState(restoreCollapsed)
   const [renaming, setRenaming] = useState<{ kind: 'char' | 'action' | 'group'; id: ID; value: string } | null>(null)
   const [deleting, setDeleting] = useState<{ kind: 'char' | 'action'; id: ID; name: string } | null>(null)
@@ -174,6 +185,112 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
       showError(what, err)
       void chars.refresh()
       return false
+    }
+  }
+
+  useEffect(() => installGen(), [])
+
+  // 后台事件：从「下载」收进来的文件、生成任务做完、要提示的话
+  const latest = useRef({ chars: chars.data, select, applyChar })
+  latest.current = { chars: chars.data, select, applyChar }
+  const jobStates = useRef(new Map<ID, SpriteJob['state']>())
+  useEffect(() => {
+    const openAnchor = (characterId: ID, refId: ID | null, facing?: SpriteFacing | null): void => {
+      const c = latest.current.chars.find((x) => x.id === characterId)
+      if (!c) return
+      const needed = neededFacings(c)
+      latest.current.select(characterId, 'refs')
+      setAnchorFrom(refId)
+      setAnchorFor(facing ?? needed.find((f) => !anchorRef(c, f)) ?? needed[0])
+    }
+    const finished = (j: SpriteJob): void => {
+      if (j.owner !== owner) return
+      if (j.state === 'failed') hud.show(`${j.characterName} · ${j.label} 没生成成功：${j.message}`, { action: { label: '查看任务', run: () => setJobsOpen(true) } })
+      else if (j.state === 'done' && j.kind === 'video' && j.actionId) {
+        const aid = j.actionId
+        hud.show(`「${j.characterName}」的 ${j.label} 生成好了`, { ok: true, action: { label: '查看', run: () => latest.current.select(j.characterId, aid) } })
+      } else if (j.state === 'done' && j.kind === 'image') {
+        hud.show(`「${j.characterName}」的${j.label.replace(' · ', '')}画好了，已放进人物素材`, { ok: true, action: { label: '做成定妆照', run: () => openAnchor(j.characterId, j.resultId, j.facing) } })
+      }
+    }
+    return window.gp.onSpriteEvent((e) => {
+      if (e.type === 'notice') hud.show(e.message)
+      else if (e.type === 'jobs') {
+        const prev = jobStates.current
+        const next = new Map(e.jobs.map((j) => [j.id, j.state]))
+        for (const j of e.jobs) {
+          const was = prev.get(j.id)
+          if ((was === 'running' || was === 'queued') && (j.state === 'done' || j.state === 'failed')) finished(j)
+        }
+        jobStates.current = next
+      } else if (e.type === 'inbox' && e.event.owner === owner) {
+        const ev = e.event
+        if (ev.takeId && ev.actionId) {
+          const { actionId, takeId } = ev
+          hud.show(`已把下载的视频收进「${ev.characterName}」的 ${ev.actionName}`, {
+            ok: true,
+            action: {
+              label: '撤销',
+              run: () => void window.gp.sprites.deleteTake(owner, ev.characterId, actionId, takeId).then((c) => {
+                latest.current.applyChar(c)
+                hud.show('已撤销，这个视频移出了动作')
+              }, (err) => showError('没能撤销', err))
+            }
+          })
+        } else if (ev.refId) {
+          const refId = ev.refId
+          hud.show(`已把下载的图片收进「${ev.characterName}」的人物素材`, { ok: true, action: { label: '做成定妆照', run: () => openAnchor(ev.characterId, refId) } })
+        }
+      }
+    })
+  }, [owner])
+
+  const createBlank = async (): Promise<void> => {
+    try {
+      const c = await window.gp.sprites.createBlank(owner)
+      chars.mutate((list) => [...list.filter((x) => x.id !== c.id), c])
+      select(c.id, 'refs')
+      hud.show(`已新建「${c.name}」：写人物描述，再让 AI 画设定图`, { ok: true, action: { label: '改名', run: () => setRenaming({ kind: 'char', id: c.id, value: c.name }) } })
+    } catch (err) {
+      showError('没能新建角色', err)
+    }
+  }
+
+  const pasteImage = async (): Promise<void> => {
+    try {
+      const r = await window.gp.sprites.addRefsFromClipboard(owner, ch?.id ?? null)
+      if (!r) {
+        hud.show('剪贴板里没有图片')
+        return
+      }
+      chars.mutate((list) => [...list.filter((x) => x.id !== r.character.id), r.character])
+      if (r.added) select(r.character.id, 'refs')
+      hud.show(r.added ? `已粘贴进「${r.character.name}」的人物素材` : r.skipped[0]?.reason ?? '没有粘贴', { ok: r.added > 0 })
+    } catch (err) {
+      showError('粘贴失败', err)
+    }
+  }
+
+  const startGenerate = async (actionIds: ID[]): Promise<void> => {
+    if (!ch) return
+    try {
+      const jobs = await window.gp.sprites.generateVideos(owner, ch.id, actionIds)
+      hud.show(`已开始生成 ${jobs.length} 个视频，做好自动放进对应动作`, { action: { label: '查看任务', run: () => setJobsOpen(true) } })
+    } catch (err) {
+      showError('没能开始生成', err)
+    }
+  }
+
+  const quickSave = async (): Promise<void> => {
+    if (!ch || !output) return
+    try {
+      const prefs = ch.exportPrefs
+      if (!prefs.toAssets2D) applyChar(await window.gp.sprites.update(owner, ch.id, { exportPrefs: { ...prefs, toAssets2D: true } }))
+      const r = await window.gp.sprites.export(owner, ch.id, buildPayload(ch, output, prefs.scale, new Set(prefs.skip)), null, { actions: {} })
+      const first = r.assets2d[0]
+      hud.show(first ? `已存进 2D 资产库「${first.name}」${r.assets2d.length > 1 ? ` 等 ${r.assets2d.length} 个` : ''}` : '已保存', { ok: true })
+    } catch (err) {
+      showError('没能存进 2D 资产库', err)
     }
   }
 
@@ -246,6 +363,11 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
     reject: '只能导入视频（mp4 / mov / m4v）、人物图（png / jpg / webp）或文件夹'
   })
 
+  usePasteImage((p) => (p.kind === 'files' ? void importFiles(p.paths, true) : void pasteImage()), {
+    accept: (f) => isSpriteFile(f.name) || (f.type === '' && !/\.[^./]+$/.test(f.name)),
+    reject: '只能粘贴视频（mp4 / mov / m4v）、人物图（png / jpg / webp）或文件夹'
+  })
+
   const copySheet = async (): Promise<void> => {
     if (!out || !ch) return
     const s = stripRgba(out.frames, out.frameWidth, out.frameHeight, sheetCols(ch.settings.cols, out.frames.length))
@@ -295,7 +417,7 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
     const picked = await showContextMenu(e, [
       { id: 'add', label: '添加动作视频…' },
       { id: 'refs', label: '添加人物图…' },
-      { id: 'template', label: '动作清单模板…' },
+      { id: 'template', label: '动作清单（模板 / 照搬其他角色）…' },
       { id: 'planned', label: '添加待生成动作…' },
       { id: 'group', label: '新建分组…' },
       menuSeparator,
@@ -343,8 +465,10 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
       })
     } else if (picked === 'prompt') {
       try {
-        await window.gp.clipboard.copyText(buildSpritePrompt(c, a).prompt)
-        hud.show('已复制生成提示词', { ok: true })
+        const text = buildSpritePrompt(c, a).prompt
+        await window.gp.clipboard.copyText(text)
+        expectDownload(owner, c.id, a.id, text)
+        hud.show(genSettings?.inbox ? `已复制生成提示词；下载的视频会自动放进「${a.name}」` : '已复制生成提示词', { ok: true })
       } catch (err) { showError('复制失败', err) }
     } else if (picked === 'version') void addActions(c, a.id)
     else if (picked === 'extract') setExtractFrom(a.id)
@@ -382,6 +506,13 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   }
 
   const failed = ch && run ? ch.actions.filter((a) => a.video && run.phases[a.id] === 'error').map((a) => a.name) : []
+  /** 当前动作之后（转一圈）的下一个待生成动作 */
+  const nextPlanned = (() => {
+    if (!ch) return null
+    const k = action ? ch.actions.indexOf(action) : -1
+    const order = [...ch.actions.slice(k + 1), ...ch.actions.slice(0, Math.max(0, k))]
+    return order.find((a) => !a.video) ?? null
+  })()
   const ready = !!ch && videoCount(ch) > 0 && !!output?.actions.length && !run?.running && characterSignature(output.character) === sig
 
   let body: React.ReactNode
@@ -392,8 +523,9 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
         <EmptyState
           icon="film"
           title="还没有角色"
-          hint="先拖入人物图（立绘、三视图）建角色，拿它去生成动作视频；也可以直接拖入绿幕动作视频：一个文件夹是一个角色，里面每个视频是一个动作（idle、run、attack…）。"
+          hint="新建一个角色，写好人物描述让 AI 画设定图；或者拖入、⌘V 粘贴人物图（立绘、三视图）建角色。也可以直接拖入绿幕动作视频：一个文件夹是一个角色，里面每个视频是一个动作（idle、run、attack…）。"
         >
+          <Button variant="primary" icon="plus" onClick={() => void createBlank()}>新建角色</Button>
           <Button onClick={() => void importFiles()}>导入…</Button>
         </EmptyState>
       </main>
@@ -456,8 +588,21 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
             )
           })}
         </nav>
-        {refsSelected ? <Refs key={ch.id} owner={owner} ch={ch} onChange={applyChar} onSelectAction={(id) => select(ch.id, id)} onTemplate={() => setTemplateOpen(true)} onAnchor={setAnchorFor} /> : action && !action.video ? (
-          <Generate key={action.id} owner={owner} ch={ch} action={action} onChange={applyChar} setParams={setParams} onRefs={() => select(ch.id, 'refs')} onImport={() => void addActions(ch, action.id)} onAnchor={setAnchorFor} />
+        {refsSelected ? <Refs key={ch.id} owner={owner} ch={ch} onChange={applyChar} onSelectAction={(id) => select(ch.id, id)} onTemplate={() => setTemplateOpen(true)} onAnchor={setAnchorFor} onJobs={() => setJobsOpen(true)} /> : action && !action.video ? (
+          <Generate
+            key={action.id}
+            owner={owner}
+            ch={ch}
+            action={action}
+            onChange={applyChar}
+            setParams={setParams}
+            onRefs={() => select(ch.id, 'refs')}
+            onImport={() => void addActions(ch, action.id)}
+            onAnchor={setAnchorFor}
+            onGenerate={(ids) => void startGenerate(ids)}
+            onNext={nextPlanned ? () => select(ch.id, nextPlanned.id) : null}
+            onJobs={() => setJobsOpen(true)}
+          />
         ) : action ? (
           <Stage
             owner={owner}
@@ -508,7 +653,10 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   return (
     <div className="screen">
       <Toolbar title={title} subtitle={subtitle}>
-        <Button icon="plus" onClick={() => void importFiles()}>
+        <Button icon="plus" onClick={() => void createBlank()} title="新建空角色：写人物描述，让 AI 画设定图">
+          新建角色
+        </Button>
+        <Button onClick={() => void importFiles()}>
           导入…
         </Button>
         {ch && (
@@ -522,12 +670,30 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
           </>
         )}
       </Toolbar>
+      {ch && !chars.loading && (
+        <FlowBar
+          owner={owner}
+          ch={ch}
+          run={run}
+          output={ready ? output : null}
+          ready={ready}
+          onRefs={() => select(ch.id, 'refs')}
+          onAnchor={(f) => { setAnchorFrom(null); setAnchorFor(f) }}
+          onTemplate={() => setTemplateOpen(true)}
+          onSelectAction={(id) => select(ch.id, id)}
+          onGenerateAll={setConfirmGen}
+          onQuickSave={() => void quickSave()}
+          onExport={() => setExporting(true)}
+          onJobs={() => setJobsOpen(true)}
+          onSettings={() => setGenOpen(true)}
+        />
+      )}
       <div className="screen-body">{body}</div>
 
       {ch && (
         <ExportSheet open={exporting} owner={owner} ch={ch} output={ready ? output : null} failed={failed} onClose={() => setExporting(false)} />
       )}
-      {ch && templateOpen && <TemplateSheet key={ch.id} owner={owner} ch={ch} onChange={applyChar} onClose={() => setTemplateOpen(false)} />}
+      {ch && templateOpen && <TemplateSheet key={ch.id} owner={owner} ch={ch} others={chars.data} onChange={applyChar} onClose={() => setTemplateOpen(false)} />}
       {ch && groupOpen && <NewGroupSheet key={ch.id} owner={owner} ch={ch} onChange={applyChar} onClose={() => setGroupOpen(false)} />}
       {ch && extractFrom && (
         <ExtractSheet
@@ -544,7 +710,30 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
         />
       )}
       {ch && plannedOpen && <AddPlannedSheet key={ch.id} owner={owner} ch={ch} onChange={applyChar} onSelectAction={(id, c) => select(ch.id, id, c)} onClose={() => setPlannedOpen(false)} />}
-      {ch && anchorFor && <AnchorSheet key={`${ch.id}:${anchorFor}`} owner={owner} ch={ch} facing={anchorFor} onChange={applyChar} onClose={() => setAnchorFor(null)} />}
+      {ch && anchorFor && <AnchorSheet key={`${ch.id}:${anchorFor}:${anchorFrom ?? ''}`} owner={owner} ch={ch} facing={anchorFor} from={anchorFrom} onChange={applyChar} onClose={() => { setAnchorFor(null); setAnchorFrom(null) }} onJobs={() => setJobsOpen(true)} />}
+      {genOpen && <GenSettingsSheet onClose={() => setGenOpen(false)} />}
+      {jobsOpen && <JobsSheet owner={owner} onClose={() => setJobsOpen(false)} onOpen={(j) => {
+        setJobsOpen(false)
+        if (j.kind === 'video' && j.actionId) select(j.characterId, j.actionId)
+        else if (j.kind === 'image') {
+          select(j.characterId, 'refs')
+          if (j.facing) { setAnchorFrom(j.resultId); setAnchorFor(j.facing) }
+        }
+      }} />}
+      {ch && genSettings && (
+        <ConfirmSheet
+          open={confirmGen !== null}
+          title={`在软件里生成 ${confirmGen?.length ?? 0} 个动作？`}
+          message={`每个动作 ${genSettings.takes} 个版本，共 ${(confirmGen?.length ?? 0) * genSettings.takes} 个视频（${SPRITE_VIDEO_MODELS[genSettings.videoModel].label} · ${genSettings.resolution} · ${genSettings.duration} 秒），按百炼价格${costText(genSettings, (confirmGen?.length ?? 0) * genSettings.takes)}。都用定妆照当首帧，做好自动放进对应动作。`}
+          confirmLabel="开始生成"
+          onCancel={() => setConfirmGen(null)}
+          onConfirm={async () => {
+            const ids = confirmGen
+            setConfirmGen(null)
+            if (ids) await startGenerate(ids)
+          }}
+        />
+      )}
       {ch && action && promptOpen && <PromptSheet key={action.id} owner={owner} ch={ch} action={action} onChange={applyChar} onClose={() => setPromptOpen(false)} />}
       {action && (
         <WatermarkSheet

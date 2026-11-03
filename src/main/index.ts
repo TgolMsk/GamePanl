@@ -3,6 +3,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { initStorage } from './storage'
 import { registerIpc } from './ipc'
+import { stopAllJobs } from './spriteGen'
 import { registerImageProtocol } from './protocol'
 import { setupDevShot } from './devshot'
 import { installMenu } from './menu'
@@ -97,6 +98,9 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) void restoredBounds().then(createWindow)
   })
 })
+
+// 软件里生成的任务（bl、codex 子进程）跟着软件一起结束
+app.on('will-quit', () => stopAllJobs())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

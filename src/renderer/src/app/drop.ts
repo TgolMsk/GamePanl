@@ -189,12 +189,17 @@ function isEditable(el: Element | null): boolean {
  * 收到 { kind: 'image' } 时调用 importImageFromClipboard / importAssetFromClipboard；
  * 收到 { kind: 'files', paths } 时调用 importImages(paths) / importAssets(projectId, paths)。
  */
-export function usePasteImage(onPaste: (pasted: PastedImage) => void, opts: { enabled?: boolean } = {}): void {
+export function usePasteImage(
+  onPaste: (pasted: PastedImage) => void,
+  opts: { enabled?: boolean; accept?: (file: File) => boolean; reject?: string } = {}
+): void {
   const enabled = opts.enabled ?? true
   const depth = useSheetDepth()
   const latest = useRef(onPaste)
+  const filter = useRef(opts)
   useEffect(() => {
     latest.current = onPaste
+    filter.current = opts
   })
   useEffect(() => {
     if (!enabled) return
@@ -207,9 +212,10 @@ export function usePasteImage(onPaste: (pasted: PastedImage) => void, opts: { en
         .filter((x) => x.path !== '')
       if (fromDisk.length > 0) {
         e.preventDefault()
-        const paths = fromDisk.filter((x) => isImageFile(x.file)).map((x) => x.path)
+        const accept = filter.current.accept ?? isImageFile
+        const paths = fromDisk.filter((x) => accept(x.file)).map((x) => x.path)
         if (paths.length > 0) latest.current({ kind: 'files', paths })
-        else hud.show(ONLY_IMAGES)
+        else hud.show(filter.current.reject ?? ONLY_IMAGES)
         return
       }
       if (Array.from(data.items).some((it) => it.kind === 'file' && it.type.startsWith('image/'))) {

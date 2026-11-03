@@ -178,6 +178,8 @@ export function Stage(p: StageProps): React.JSX.Element {
   )
 }
 
+const TAKE_VIA: Record<SpriteTake['via'], string> = { file: '导入的', inbox: '从「下载」收的', generate: '软件里生成的' }
+
 /** 视频版本各自保存片段和换帧记录，选中的版本参与预览和导出。有定妆照时每个版本显示和定妆照的相似度。 */
 function VersionBar(p: StageProps): React.JSX.Element {
   const [busy, setBusy] = useState(false)
@@ -233,10 +235,13 @@ function VersionBar(p: StageProps): React.JSX.Element {
     const picked = await showContextMenu(e, [
       { id: 'use', label: '使用这个版本', enabled: take.video !== action.video },
       { id: 'split', label: '拆成单独动作' },
+      { id: 'prompt', label: '复制当时的提示词', enabled: take.prompt !== '' },
       menuSeparator,
       { id: 'delete', label: '删除这个版本', destructive: true }
     ])
-    if (picked === 'use') use(take)
+    if (picked === 'prompt') {
+      void window.gp.clipboard.copyText(take.prompt).then(() => hud.show('已复制生成这个版本时的提示词'), (err) => showError('复制失败', err))
+    } else if (picked === 'use') use(take)
     else if (picked === 'split') void run(() => window.gp.sprites.splitTake(owner, ch.id, action.id, take.id), '已拆成单独动作')
     else if (picked === 'delete') setRemove(take)
   }
@@ -253,7 +258,7 @@ function VersionBar(p: StageProps): React.JSX.Element {
             type="button"
             className={cx('sp-version', take.video === action.video && 'on')}
             aria-pressed={take.video === action.video}
-            title={pct === null ? take.sourceName : `${take.sourceName} · 和定妆照相似 ${pct}%`}
+            title={[take.sourceName, TAKE_VIA[take.via], pct === null ? '' : `和定妆照相似 ${pct}%`].filter(Boolean).join(' · ')}
             disabled={busy}
             onClick={() => use(take)}
             onContextMenu={(e) => void menu(e, take)}

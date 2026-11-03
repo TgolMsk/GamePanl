@@ -7,7 +7,7 @@
 //   GAMEPANL_SHOT_SPRITES_EXPORT=<目录>   截完序列帧页面后点「导出…」导出到这个目录
 //   GAMEPANL_SHOT_SPRITES_REF=<人物图路径>   配合下一项：加进人物素材，在人物素材页做定妆照（拍定妆照面板）
 //   GAMEPANL_SHOT_SPRITES_SCENE=<视频路径，多个用逗号分隔>   全局库第一个角色套用「横版动作」模板、把这些视频加成新版本，
-//                                      再多截三张：人物素材页、待生成动作的生成面板、有多个版本的动作
+//                                      再多截三张：人物素材页、待生成动作的生成面板、有多个版本的动作，以及再抽动作、导出、生成设置三个面板
 // 页面切换由界面提供的 window.__gpDev.go(route) 完成（projectId 省略 = 第一个项目）。
 import { app } from 'electron'
 import type { BrowserWindow, WebContents } from 'electron'
@@ -291,7 +291,8 @@ async function spriteScene(win: BrowserWindow, dir: string, takes: string[], lay
   // 停在「多版本」那一页：再抽一个动作的面板、每个动作单独存的导出面板
   const sheets: Array<[string, string]> = [
     ['library-sprites-extract', `[...document.querySelectorAll('.sp-tl button')].find((b) => b.textContent.includes('再抽一个动作'))?.click()`],
-    ['library-sprites-export', `[...document.querySelectorAll('.toolbar button, button')].find((b) => b.textContent.trim() === '导出…' && !b.disabled)?.click()`]
+    ['library-sprites-export', `[...document.querySelectorAll('.toolbar button, button')].find((b) => b.textContent.trim() === '导出…' && !b.disabled)?.click()`],
+    ['library-sprites-gen', `document.querySelector('.sp-flow-actions button[aria-label="生成设置"]')?.click()`]
   ]
   await wc.executeJavaScript(`window.gp.sprites.update(null, ${JSON.stringify(ids.c)}, { exportPrefs: { assets2dMode: 'action' } })`)
   for (const [name, click] of sheets) {
