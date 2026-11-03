@@ -62,6 +62,23 @@ export function sampleIndices(n: number, k: number, seed = 0): Uint32Array {
   return idx.slice(0, k)
 }
 
+/** 和 sampleIndices 结果完全相同（同样的下标、同样的顺序），但只记被换过的位置：n 很大、k 较小时不用开 n 长的数组 */
+export function sampleIndicesSparse(n: number, k: number, seed = 0): Uint32Array {
+  if (k >= n) return sampleIndices(n, k, seed)
+  const moved = new Map<number, number>()
+  const at = (i: number): number => moved.get(i) ?? i
+  const rnd = seededRandom(seed)
+  const out = new Uint32Array(k)
+  for (let i = 0; i < k; i++) {
+    const j = i + Math.floor(rnd() * (n - i))
+    const vi = at(i)
+    const vj = at(j)
+    moved.set(j, vi)
+    out[i] = vj
+  }
+  return out
+}
+
 /** 按长边缩放到 longSide，宽高取偶数（与参考实现 fit_size 一致） */
 export function fitSize(w: number, h: number, longSide: number): [number, number] {
   const s = longSide / Math.max(w, h)

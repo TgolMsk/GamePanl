@@ -1,0 +1,378 @@
+/* 2D 资产：照片式网格、检查器、动画预览和从全局库添加 */
+.a2d-screen {
+  container-type: inline-size;
+  container-name: assets2d;
+}
+.a2d-screen .toolbar .toolbar-title {
+  flex-shrink: 1;
+  max-width: 220px;
+}
+.a2d-screen .search {
+  width: auto;
+  flex: 0 1 220px;
+  min-width: 100px;
+}
+.a2d-categories {
+  flex: none;
+}
+.a2d-categories .seg button {
+  padding: 0 8px;
+}
+.a2d-categories .a2d-categories-compact {
+  display: none;
+}
+@container assets2d (max-width: 880px) {
+  .a2d-categories .seg {
+    display: none;
+  }
+  .a2d-categories .a2d-categories-compact {
+    display: inline-flex;
+  }
+}
+
+/* ---------- 网格与卡片 ---------- */
+.a2d-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px 16px;
+  padding: 24px;
+}
+.a2d-card .hit {
+  cursor: default;
+}
+.a2d-card .a2d-frame.checker,
+.a2d-pick .a2d-frame.checker {
+  background-color: var(--chk1);
+  background-image: conic-gradient(var(--chk2) 25%, transparent 0 50%, var(--chk2) 0 75%, transparent 0);
+  background-size: 14px 14px;
+}
+.a2d-card .a2d-frame > img,
+.a2d-thumb {
+  object-fit: contain;
+}
+.a2d-thumb {
+  width: 100%;
+  height: 100%;
+}
+.a2d-pixel {
+  image-rendering: pixelated;
+}
+.a2d-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--img-pill);
+  color: var(--on-dark);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* ---------- 动画播放器 ---------- */
+.a2d-player {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 8px;
+}
+.a2d-stage {
+  position: relative;
+  height: 220px;
+  min-height: 0;
+  border-radius: var(--r-img);
+  overflow: auto;
+  display: flex;
+  color: var(--tx3);
+}
+.a2d-stage canvas {
+  display: block;
+  margin: auto;
+  flex: none;
+  image-rendering: pixelated;
+}
+.a2d-stage [hidden] {
+  display: none;
+}
+.a2d-stage > svg {
+  margin: auto;
+}
+.a2d-static {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.a2d-player-message {
+  margin: auto;
+  padding: 20px;
+  color: var(--tx2);
+  text-align: center;
+  font-size: 12px;
+}
+.a2d-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.a2d-animation-select {
+  flex: 1;
+  min-width: 0;
+}
+.a2d-animation-select select {
+  width: 100%;
+  text-overflow: ellipsis;
+}
+.a2d-animation-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.a2d-player-buttons {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.a2d-player-position {
+  width: 100%;
+  color: var(--tx2);
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.a2d-viewer {
+  display: flex;
+  padding: 16px 20px;
+}
+.a2d-viewer .a2d-player {
+  flex: 1;
+}
+.a2d-viewer .a2d-stage {
+  flex: 1;
+  height: auto;
+}
+.a2d-viewer .a2d-animation-select {
+  flex: none;
+  min-width: 150px;
+  max-width: 350px;
+}
+.a2d-viewer .a2d-player-position {
+  margin-left: auto;
+  width: auto;
+}
+
+/* ---------- 检查器 ---------- */
+.a2d-inspector > * {
+  flex: none;
+}
+.a2d-head,
+.a2d-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.a2d-multi {
+  gap: 4px;
+}
+.a2d-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tx);
+  padding: 4px 6px 0;
+  overflow-wrap: anywhere;
+}
+.a2d-sub {
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--tx2);
+  overflow-wrap: anywhere;
+}
+.a2d-name {
+  height: 30px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+.a2d-name:hover {
+  border-color: var(--sep);
+}
+.a2d-name:focus {
+  background: var(--card);
+}
+.a2d-count {
+  font-weight: 400;
+  color: var(--tx2);
+}
+.a2d-pad {
+  padding: 0 4px;
+}
+.a2d-animation-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.a2d-animation-group-name {
+  padding: 0 4px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tx2);
+  overflow-wrap: anywhere;
+}
+.a2d-references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 4px;
+}
+.a2d-references img {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-img);
+  object-fit: contain;
+}
+.a2d-animation-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 0.5px solid var(--sep);
+  font-size: 12px;
+}
+.a2d-animation-row:first-child {
+  border-top: 0;
+}
+.a2d-animation-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.a2d-animation-row > span:last-child {
+  flex: none;
+  color: var(--tx2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.a2d-source {
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--tx2);
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+.a2d-source > .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.a2d-path {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--tx3);
+  overflow-wrap: anywhere;
+}
+.a2d-inspector .a2d-spacer {
+  flex: 1;
+}
+.a2d-none {
+  margin: auto;
+  text-align: center;
+  color: var(--tx2);
+}
+.a2d-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.a2d-actions-row {
+  display: flex;
+  gap: 8px;
+}
+.a2d-actions-row > .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- 从全局库添加 ---------- */
+.a2d-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 12px;
+}
+.a2d-pick {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.a2d-pick .frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-img);
+  overflow: hidden;
+}
+.a2d-pick .frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.a2d-pick.on .frame {
+  box-shadow: 0 0 0 3px var(--acc);
+}
+.a2d-pick:focus-visible .frame {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.a2d-pick.added {
+  opacity: 0.55;
+}
+.a2d-pick .cap {
+  font-size: 12px;
+}
+.a2d-tick {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--on-dark) 92%, transparent);
+  background: color-mix(in srgb, var(--img-btn) 32%, transparent);
+  color: var(--on-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.a2d-pick.on .a2d-tick {
+  background: var(--acc);
+}
+.a2d-picker-empty {
+  padding: 120px 0;
+  text-align: center;
+  color: var(--tx2);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+}

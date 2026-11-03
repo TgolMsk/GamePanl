@@ -8,6 +8,7 @@ import type { AnalyzeOptions, RenderOptions } from './pipeline'
 export type WorkerRequest =
   | { id: number; type: 'load'; key: string; bytes: ArrayBuffer }
   | { id: number; type: 'release'; key: string }
+  | { id: number; type: 'trim'; key: string }
   | { id: number; type: 'analyze'; key: string; options: AnalyzeOptions }
   | {
       id: number
@@ -29,6 +30,7 @@ export type WorkerRequest =
       maxSide: number
     }
   | { id: number; type: 'timeline'; key: string; height: number }
+  | { id: number; type: 'colorSample'; key: string }
 
 export type WorkerResponse = { id: number; ok: true; result: unknown } | { id: number; ok: false; error: string }
 

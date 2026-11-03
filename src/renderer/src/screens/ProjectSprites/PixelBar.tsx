@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Chip, NumberField, Segmented } from '@renderer/ui'
 import type { SpriteAction, SpriteActionParams, SpriteCharacter, SpriteSettings } from '@shared/sprites'
 
-const HEIGHT_PRESETS = [16, 24, 32, 48, 64, 96, 128]
+const HEIGHT_PRESETS = [16, 24, 32, 48, 64, 96, 128, 256]
 const SLIDER_MAX_HEIGHT = 256
 
 /** 滑杆：拖动时只更新草稿，停顿或松手后提交 */
@@ -77,7 +77,7 @@ export function PixelBar(p: PixelBarProps): React.JSX.Element {
   const s = p.ch.settings
   const a = p.action.params
   const overridden = a.height !== null || a.colors !== null
-  const single = p.ch.actions.length <= 1
+  const single = p.ch.actions.filter((action) => action.video).length <= 1
   const [scope, setScope] = useState<'char' | 'action'>(overridden ? 'action' : 'char')
   useEffect(() => {
     setScope(overridden ? 'action' : 'char')
@@ -126,6 +126,26 @@ export function PixelBar(p: PixelBarProps): React.JSX.Element {
         <Slider value={c} min={2} max={64} onChange={dragC} onCommit={commitC} label="颜色数" />
         <NumberField value={c} min={2} max={64} onChange={setColors} ariaLabel="颜色数（输入）" />
       </div>
+      {!mine && (
+        <div className="grp">
+          <span className="lbl">取色</span>
+          <div className="seg sp-palette-source" role="group" aria-label="调色板取色来源">
+            <button type="button" className={s.paletteFrom === 'video' ? 'on' : undefined} aria-pressed={s.paletteFrom === 'video'} onClick={() => p.onSettings({ paletteFrom: 'video' })}>
+              视频
+            </button>
+            <button
+              type="button"
+              className={s.paletteFrom === 'reference' ? 'on' : undefined}
+              aria-pressed={s.paletteFrom === 'reference'}
+              disabled={!p.ch.mainRef}
+              title={!p.ch.mainRef ? '先添加人物图' : '从人物主图取色'}
+              onClick={() => p.onSettings({ paletteFrom: 'reference' })}
+            >
+              人物图
+            </button>
+          </div>
+        </div>
+      )}
       {!single && (
         <div className="grp">
           <Segmented

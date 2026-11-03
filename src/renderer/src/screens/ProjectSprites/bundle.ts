@@ -1,6 +1,7 @@
 // 把处理结果整理成导出内容（送给主进程写文件）。导出放大倍数在这里乘进帧、尺寸和落脚点。
 import type { CharacterOutput } from '@renderer/sprites/engine'
 import type { SpriteExportPayload } from '@shared/api'
+import type { ID } from '@shared/types'
 import { safeFileName, type SpriteCharacter } from '@shared/sprites'
 import { hex } from './draw'
 
@@ -26,16 +27,26 @@ export function upscaleRgba(rgba: Uint8Array, w: number, h: number, k: number): 
   return out
 }
 
-export function buildPayload(ch: SpriteCharacter, output: CharacterOutput, scale = 1): SpriteExportPayload {
+/** skip：这次不导出的动作 */
+export function buildPayload(ch: SpriteCharacter, output: CharacterOutput, scale = 1, skip: ReadonlySet<ID> = new Set()): SpriteExportPayload {
   const s = ch.settings
   const k = Math.max(1, Math.min(8, Math.round(scale)))
   const palette = output.palette.map(hex)
   const mul = (p: [number, number]): [number, number] => [p[0] * k, p[1] * k]
-  const actions = output.actions.map((o) => {
+  // 按列表里的顺序导出：先按分组，同组按动作顺序
+  const rank = (id: string): number => {
+    const a = ch.actions.find((x) => x.id === id)
+    const g = ch.groups.findIndex((x) => x.id === a?.group)
+    return (g < 0 ? ch.groups.length : g) * 10000 + ch.actions.findIndex((x) => x.id === id)
+  }
+  const outs = output.actions.filter((o) => !skip.has(o.actionId)).sort((a, b) => rank(a.actionId) - rank(b.actionId))
+  const actions = outs.map((o) => {
     const a = ch.actions.find((x) => x.id === o.actionId)
+    const group = ch.groups.find((g) => g.id === a?.group)?.name
     const an = o.analysis
     const name = a?.name ?? '动作'
     return {
+      actionId: o.actionId,
       name,
       loop: an.kind === 'loop',
       fps: an.fps,
@@ -46,6 +57,7 @@ export function buildPayload(ch: SpriteCharacter, output: CharacterOutput, scale
       frames: o.frames.map((f) => upscaleRgba(f, o.frameWidth, o.frameHeight, k)),
       sourceFrames: an.picks.map((p) => p.frame),
       meta: {
+        ...(group && { group }),
         source: a?.sourceName ?? '',
         video: { width: an.info.width, height: an.info.height, fps: an.info.fps, frames: an.info.frameCount, codec: an.info.codec },
         segment: an.segment,
@@ -72,9 +84,11 @@ export function buildPayload(ch: SpriteCharacter, output: CharacterOutput, scale
     canvas: output.layout.canvas,
     h0Spread: output.layout.h0Spread,
     qc: output.qc.map(stripQc),
-    actions: output.actions.map((o, k) => ({
-      name: actions[k].name,
-      file: safeFileName(actions[k].name),
+    paletteFrom: s.paletteFrom === 'reference' && ch.mainRef ? 'reference' : 'video',
+    actions: outs.map((o, i) => ({
+      name: actions[i].name,
+      group: actions[i].meta.group ?? null,
+      file: safeFileName(actions[i].name),
       kind: o.analysis.kind,
       frames: o.frames.length,
       fps: o.analysis.fps,
@@ -82,7 +96,7 @@ export function buildPayload(ch: SpriteCharacter, output: CharacterOutput, scale
       pivot: mul(o.layout.pivot),
       height: actionHeight(ch, o.actionId),
       colors: o.palette.length,
-      sourceFrames: actions[k].sourceFrames,
+      sourceFrames: actions[i].sourceFrames,
       warnings: o.warnings,
       qc: o.qc.map(stripQc)
     }))

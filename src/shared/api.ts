@@ -9,21 +9,25 @@ import type {
   ImageRef,
   LibImage,
   LibModel,
+  LibAsset2D,
+  Asset2DImportResult,
   MenuItemSpec,
   ModelImportResult,
   Note,
   Project,
   ProjectAsset,
   ProjectModel,
+  ProjectAsset2D,
   ProjectSummary,
   Prompt,
   Style,
   UpdateState
 } from './types'
-import type { SpriteAction, SpriteActionParams, SpriteActionPatch, SpriteCharacter, SpriteCharacterPatch, SpriteExportBundle, SpriteOwner } from './sprites'
+import type { SpriteActionParams, SpriteActionPatch, SpriteCharacter, SpriteCharacterPatch, SpriteExportBundle, SpriteFacing, SpriteOwner } from './sprites'
 
 export type LibImagePatch = Partial<Pick<LibImage, 'name' | 'category' | 'tags'>>
 export type LibModelPatch = Partial<Pick<LibModel, 'name' | 'category' | 'tags'>>
+export type LibAsset2DPatch = Partial<Pick<LibAsset2D, 'name' | 'category' | 'tags'>>
 export type PromptInput = Pick<Prompt, 'title' | 'body' | 'category'>
 export type PromptPatch = Partial<PromptInput>
 export type StyleInput = Pick<Style, 'name' | 'desc' | 'palette' | 'prompt' | 'sampleImageId'>
@@ -33,16 +37,34 @@ export type NoteInput = Partial<Pick<Note, 'title' | 'category' | 'blocks'>>
 export type AssetPatch = Partial<Pick<ProjectAsset, 'name' | 'category' | 'tags'>>
 
 /** 导入序列帧视频的结果 */
+/** 一个视频放到了哪：new 新动作；filled 补上了待生成的动作；take 已有动作的新版本 */
+export interface SpritePlaced {
+  characterId: ID
+  actionId: ID
+  action: string
+  how: 'new' | 'filled' | 'take'
+}
+
 export interface SpriteImportResult {
   created: SpriteCharacter[]
-  /** 和已有角色同名：动作加进了已有角色 */
+  /** 加进了已有角色（同名，或拖进当前选中的角色） */
   merged: SpriteCharacter[]
+  placed: SpritePlaced[]
+  /** 加进的人物图张数 */
+  refs: number
   skipped: Array<{ path: string; reason: string }>
 }
 
 export interface SpriteAddResult {
   character: SpriteCharacter
-  added: SpriteAction[]
+  placed: SpritePlaced[]
+  refs: number
+  skipped: Array<{ path: string; reason: string }>
+}
+
+export interface SpriteRefsResult {
+  character: SpriteCharacter
+  added: number
   skipped: Array<{ path: string; reason: string }>
 }
 
@@ -50,7 +72,7 @@ export interface SpriteAddResult {
 export type SpriteExportPayload = Omit<SpriteExportBundle, 'name' | 'godotPrefix' | 'appVersion'>
 
 export interface SpriteExportOutcome {
-  /** 写出的角色文件夹 */
+  /** 写出的角色文件夹；仅存进 2D 资产库时为库里的目录 */
   folder: string
   files: number
   /** 存进项目资料的图片数 */
@@ -58,6 +80,15 @@ export interface SpriteExportOutcome {
   /** 实际用的 res:// 目录；null 表示写的是相对路径 */
   godotPrefix: string | null
   character: SpriteCharacter
+  /** 这次存进 2D 资产库的资产（整个角色一个，或每个动作一个） */
+  assets2d: LibAsset2D[]
+}
+
+/** 存进 2D 资产库时用的名称；不填用默认（角色名 / 「角色名 · 动作名」），填了会改掉库里的名称 */
+export interface SpriteAssetNames {
+  character?: string
+  /** 动作 id → 资产名称 */
+  actions?: Record<ID, string>
 }
 
 export interface GpApi {
@@ -108,6 +139,14 @@ export interface GpApi {
     setModelPreview(id: ID, png: Uint8Array): Promise<LibModel>
     /** 弹出文件夹选择框，把模型文件夹拷贝进去；取消返回 null，否则返回拷贝出来的文件夹路径 */
     copyModelTo(id: ID): Promise<string | null>
+
+    listAssets2D(): Promise<LibAsset2D[]>
+    /** 导入图片、JSON 图集或资产文件夹；不传 paths 时弹出系统选择框 */
+    importAssets2D(paths?: string[]): Promise<Asset2DImportResult>
+    updateAsset2D(id: ID, patch: LibAsset2DPatch): Promise<LibAsset2D>
+    /** 整个文件夹移到废纸篓，并清除项目引用 */
+    deleteAsset2D(id: ID): Promise<void>
+    copyAsset2DTo(id: ID): Promise<string | null>
   }
 
   projects: {
@@ -140,6 +179,11 @@ export interface GpApi {
     addModels(projectId: ID, modelIds: ID[]): Promise<ProjectModel[]>
     /** 去掉引用（全局库里的模型不动） */
     removeModels(projectId: ID, modelIds: ID[]): Promise<void>
+
+    listAssets2D(projectId: ID): Promise<ProjectAsset2D[]>
+    /** 引用全局库 2D 资产，不复制文件 */
+    addAssets2D(projectId: ID, asset2dIds: ID[]): Promise<ProjectAsset2D[]>
+    removeAssets2D(projectId: ID, asset2dIds: ID[]): Promise<void>
   }
 
   /**
@@ -148,10 +192,37 @@ export interface GpApi {
    */
   sprites: {
     list(owner: SpriteOwner): Promise<SpriteCharacter[]>
-    /** 导入视频新建角色：每个文件夹一个角色，一起拖进来的零散视频算一个角色。没给路径时弹出选择框 */
-    create(owner: SpriteOwner, paths?: string[], height?: number): Promise<SpriteImportResult>
-    /** 给角色添加动作视频。没给路径时弹出选择框 */
-    addActions(owner: SpriteOwner, id: ID, paths?: string[]): Promise<SpriteAddResult>
+    /**
+     * 导入视频和人物图：每个文件夹一个角色（视频是动作、图片是人物素材）；零散文件给了 target（选中的角色）时加进它，
+     * 否则算一个角色。和已有角色同名时加进那个角色。没给路径时弹出选择框
+     */
+    create(owner: SpriteOwner, paths?: string[], opts?: { height?: number; target?: { id: ID; actionId: ID | null } | null }): Promise<SpriteImportResult>
+    /** 给角色添加视频（按文件名归到动作；对不上又只有一个时放进 actionId）和人物图。没给路径时弹出选择框 */
+    addActions(owner: SpriteOwner, id: ID, paths?: string[], actionId?: ID | null): Promise<SpriteAddResult>
+    /** 添加人物图（立绘、三视图、配件参考）。没给路径时弹出选择框 */
+    addRefs(owner: SpriteOwner, id: ID, paths?: string[]): Promise<SpriteRefsResult>
+    /** 从全局库图片 / 项目资料添加人物图 */
+    addRefsFromImages(owner: SpriteOwner, id: ID, refs: ImageRef[]): Promise<SpriteRefsResult>
+    deleteRef(owner: SpriteOwner, id: ID, refId: ID): Promise<SpriteCharacter>
+    /** 人物图原图写进剪贴板（粘贴到生成网站）；成功返回 true */
+    copyRef(owner: SpriteOwner, id: ID, refId: ID): Promise<boolean>
+    revealRef(owner: SpriteOwner, id: ID, refId: ID): Promise<void>
+    /** 原生拖出人物图原文件（拖到浏览器上传框、访达） */
+    dragRef(owner: SpriteOwner, id: ID, refId: ID): Promise<void>
+    /** 存定妆照（首帧图）：png 为界面做好的 PNG；为 null 时直接用 from 那张人物图 */
+    saveAnchor(owner: SpriteOwner, id: ID, facing: SpriteFacing, from: ID | null, png: Uint8Array | null): Promise<SpriteCharacter>
+    /** 新建待生成的动作；group 为 null 时按动作名自动归组 */
+    addPlanned(owner: SpriteOwner, id: ID, names: string[], group: ID | null): Promise<SpriteCharacter>
+    /** 套用动作清单模板（SPRITE_TEMPLATES 的 id） */
+    applyTemplate(owner: SpriteOwner, id: ID, templateId: string): Promise<SpriteCharacter>
+    useTake(owner: SpriteOwner, id: ID, actionId: ID, takeId: ID): Promise<SpriteCharacter>
+    deleteTake(owner: SpriteOwner, id: ID, actionId: ID, takeId: ID): Promise<SpriteCharacter>
+    /** 把一个版本拆成单独的动作 */
+    splitTake(owner: SpriteOwner, id: ID, actionId: ID, takeId: ID): Promise<SpriteCharacter>
+    /** 用同一个视频再建一个动作（各自在时间轴上选片段）；group 为 undefined 时和原动作同组，'auto' 按动作名归组 */
+    extractAction(owner: SpriteOwner, id: ID, actionId: ID, name: string, group?: ID | null | 'auto'): Promise<SpriteCharacter>
+    /** 用 2D 资产里的图片新建角色（人物素材），导出时回写这个资产 */
+    fromAsset2D(owner: SpriteOwner, assetId: ID): Promise<SpriteCharacter>
     update(owner: SpriteOwner, id: ID, patch: SpriteCharacterPatch): Promise<SpriteCharacter>
     updateAction(owner: SpriteOwner, id: ID, actionId: ID, patch: SpriteActionPatch): Promise<SpriteCharacter>
     /** 把一套参数用到全部动作（片段起止、循环 / 单次各自保留） */
@@ -159,8 +230,8 @@ export interface GpApi {
     reorderActions(owner: SpriteOwner, id: ID, order: ID[]): Promise<SpriteCharacter>
     deleteAction(owner: SpriteOwner, id: ID, actionId: ID): Promise<SpriteCharacter>
     remove(owner: SpriteOwner, id: ID): Promise<void>
-    /** 导出到 dir/<角色名>/；开了「同时存进资料」时图集和动图存进项目资料（全局库的角色存进图片素材） */
-    export(owner: SpriteOwner, id: ID, payload: SpriteExportPayload, dir: string): Promise<SpriteExportOutcome>
+    /** 导出到 dir/<角色名>/；dir 为 null 时只存进 2D 资产库，仍可同步图集和动图到资料 / 图片素材 */
+    export(owner: SpriteOwner, id: ID, payload: SpriteExportPayload, dir: string | null, names?: SpriteAssetNames): Promise<SpriteExportOutcome>
     /** 这个目录在不在 Godot 项目里；在的话返回对应的 res:// 路径 */
     detectGodot(dir: string): Promise<string | null>
     /** 在访达中显示导出的文件夹 */
@@ -186,6 +257,9 @@ export interface GpApi {
     revealModel(id: ID): Promise<void>
     /** 原生拖拽整个模型文件夹（拖到访达、游戏项目里就是拷贝一份）。在 dragstart 里 preventDefault 后调用 */
     dragModel(id: ID): Promise<void>
+    revealAsset2D(id: ID): Promise<void>
+    /** 原生拖出整个 2D 资产文件夹 */
+    dragAsset2D(id: ID): Promise<void>
   }
 
   /** 在线更新：到 GitHub Releases 按版本号检测，安装包下载到「下载」文件夹后由用户打开安装 */
@@ -235,10 +309,23 @@ export function modelFileUrl(id: ID, file: string): string {
   return `gp://model/${encodeURIComponent(id)}/file/${file.split('/').map(encodeURIComponent).join('/')}`
 }
 
+/** 2D 资产文件地址；相对路径的每一段分别编码 */
+export function asset2dFileUrl(id: ID, rel: string): string {
+  return `gp://asset2d/${encodeURIComponent(id)}/file/${rel.split('/').map(encodeURIComponent).join('/')}`
+}
+
 /** 序列帧动作的源视频（owner 为 null 是全局库的角色） */
-export function spriteVideoUrl(owner: SpriteOwner, id: ID, actionId: ID): string {
+export function spriteVideoUrl(owner: SpriteOwner, id: ID, actionId: ID, takeId?: ID): string {
   const scope = owner === null ? 'library' : `project/${encodeURIComponent(owner)}`
-  return `gp://sprite/${scope}/${encodeURIComponent(id)}/${encodeURIComponent(actionId)}`
+  const base = `gp://sprite/${scope}/${encodeURIComponent(id)}/${encodeURIComponent(actionId)}`
+  return takeId ? `${base}?take=${encodeURIComponent(takeId)}` : base
+}
+
+/** 序列帧角色的人物图；thumb 同上 */
+export function spriteRefUrl(owner: SpriteOwner, id: ID, refId: ID, thumb?: number): string {
+  const scope = owner === null ? 'library' : `project/${encodeURIComponent(owner)}`
+  const base = `gp://sprite-ref/${scope}/${encodeURIComponent(id)}/${encodeURIComponent(refId)}`
+  return thumb ? `${base}?thumb=${thumb}` : base
 }
 
 export function modelPreviewUrl(model: { id: ID; preview: string | null; rendered: boolean }, thumb?: number): string {

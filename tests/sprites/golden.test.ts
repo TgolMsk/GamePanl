@@ -2,86 +2,18 @@
 // 测试里用 ffmpeg 把视频解成原始 YUV 当帧源（运行时用 WebCodecs，同一套 YUV → RGB 代码）。
 // node_modules/.bin/esbuild tests/sprites/golden.test.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer/src --outfile=/tmp/gp-golden.mjs && node /tmp/gp-golden.mjs [输出目录]
 import assert from 'node:assert/strict'
-import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { resolveColor, rgbToHsv, type ColorSpec, type YuvFrame } from '@renderer/sprites/core/color'
+import { rgbToHsv } from '@renderer/sprites/core/color'
 import { layoutCharacter } from '@renderer/sprites/core/layout'
-import { ActionPipeline, sampleQuotas, sharedPalette, type FrameSource } from '@renderer/sprites/pipeline'
+import { ActionPipeline, sampleQuotas, sharedPalette } from '@renderer/sprites/pipeline'
 import { DEFAULT_SPRITE_PARAMS, FALLBACK_WATERMARK, type SpriteActionParams } from '@shared/sprites'
 import { encodePng } from '../../src/main/spriteExport'
+import { FfmpegSource, readPngRgba } from './ffmpeg'
 
 const VIDEO = process.env['GP_SAMPLE'] ?? '/Users/ws/Downloads/wan3_run_swordsman.mp4'
 const REF = process.env['GP_REFERENCE'] ?? '/Users/ws/Downloads/sprite_from_video/run_swordsman'
 const OUT = process.argv[2] ?? '/tmp/gp-golden'
-
-class FfmpegSource implements FrameSource {
-  width: number
-  height: number
-  fps: number
-  frameCount: number
-  color: ColorSpec
-  codec: string
-  decodeMs = 0
-
-  constructor(private readonly path: string) {
-    const j = JSON.parse(
-      execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_packets', '-show_streams', '-of', 'json', path]).toString()
-    ) as { streams: Array<Record<string, string>> }
-    const s = j.streams[0]
-    this.width = Number(s['width'])
-    this.height = Number(s['height'])
-    const [a, b] = s['r_frame_rate'].split('/').map(Number)
-    this.fps = a / b
-    this.frameCount = Number(s['nb_read_packets'])
-    this.codec = s['codec_name']
-    const matrix = s['color_space'] === 'bt709' ? 'bt709' : s['color_space']?.startsWith('bt470') || s['color_space'] === 'smpte170m' ? 'bt601' : null
-    const fullRange = s['color_range'] === 'pc' ? true : s['color_range'] === 'tv' ? false : null
-    this.color = resolveColor({ matrix, fullRange }, this.width, this.height)
-  }
-
-  async decode(indices: number[] | 'all', onFrame: (index: number, f: YuvFrame) => void): Promise<void> {
-    const t0 = performance.now()
-    const want = indices === 'all' ? null : new Set(indices)
-    const last = want ? Math.max(...want) : Infinity
-    const { width: w, height: h } = this
-    const cw = w >> 1
-    const chh = h >> 1
-    const size = w * h + 2 * cw * chh
-    const frame = new Uint8Array(size)
-    let fill = 0
-    let idx = 0
-    const proc = spawn('ffmpeg', ['-v', 'error', '-i', this.path, '-f', 'rawvideo', '-pix_fmt', 'yuv420p', '-'])
-    const plane = (offset: number, pw: number, ph: number): YuvFrame['y'] => ({ data: frame, offset, stride: pw, pixelStride: 1, width: pw, height: ph })
-    outer: for await (const chunk of proc.stdout as AsyncIterable<Buffer>) {
-      let off = 0
-      while (off < chunk.length) {
-        const n = Math.min(size - fill, chunk.length - off)
-        frame.set(chunk.subarray(off, off + n), fill)
-        fill += n
-        off += n
-        if (fill === size) {
-          if (!want || want.has(idx)) onFrame(idx, { width: w, height: h, y: plane(0, w, h), u: plane(w * h, cw, chh), v: plane(w * h + cw * chh, cw, chh) })
-          idx++
-          fill = 0
-          if (idx > last) break outer
-        }
-      }
-    }
-    proc.kill()
-    this.decodeMs += performance.now() - t0
-  }
-}
-
-function readPngRgba(file: string): { width: number; height: number; rgba: Uint8Array } {
-  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file])
-    .toString()
-    .trim()
-    .split(',')
-    .map(Number)
-  const raw = execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 1 << 28 })
-  return { width: w, height: h, rgba: new Uint8Array(raw.buffer, raw.byteOffset, raw.length) }
-}
 
 /** 两帧不透明区域的 IoU；尺寸可能差 1–2 px，在 ±2 px 内找最佳对齐 */
 function bestIoU(a: { width: number; height: number; rgba: Uint8Array }, b: { width: number; height: number; rgba: Uint8Array }): number {

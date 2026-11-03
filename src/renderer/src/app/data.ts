@@ -8,10 +8,12 @@ import type {
   ID,
   LibImage,
   LibModel,
+  LibAsset2D,
   Note,
   Project,
   ProjectAsset,
   ProjectModel,
+  ProjectAsset2D,
   ProjectSummary,
   Prompt,
   Style
@@ -128,11 +130,13 @@ const KEY = {
   prompts: 'library:prompts',
   styles: 'library:styles',
   models: 'library:models',
+  libAssets2D: 'library:assets2d',
   projects: 'projects',
   project: (id: ID) => `project:${id}`,
   notes: (id: ID) => `notes:${id}`,
   assets: (id: ID) => `assets:${id}`,
   projectModels: (id: ID) => `models:${id}`,
+  assets2d: (id: ID) => `assets2d:${id}`,
   sprites: (owner: SpriteOwner) => (owner === null ? 'library:sprites' : `sprites:${owner}`)
 }
 
@@ -156,6 +160,11 @@ export function useLibModels(): Resource<LibModel[]> {
   return useResource(KEY.models, () => window.gp.library.listModels(), NONE)
 }
 
+/** 全局库 · 2D 资产 */
+export function useLibAssets2D(): Resource<LibAsset2D[]> {
+  return useResource(KEY.libAssets2D, () => window.gp.library.listAssets2D(), NONE)
+}
+
 /** 项目列表（含笔记数、资料数） */
 export function useProjects(): Resource<ProjectSummary[]> {
   return useResource(KEY.projects, () => window.gp.projects.list(), NONE)
@@ -174,6 +183,11 @@ export function useNotes(projectId: ID): Resource<Note[]> {
 /** 一个项目引用的全局库模型 */
 export function useProjectModels(projectId: ID): Resource<ProjectModel[]> {
   return useResource(KEY.projectModels(projectId), () => window.gp.projects.listModels(projectId), NONE)
+}
+
+/** 一个项目引用的全局库 2D 资产 */
+export function useProjectAssets2D(projectId: ID): Resource<ProjectAsset2D[]> {
+  return useResource(KEY.assets2d(projectId), () => window.gp.projects.listAssets2D(projectId), NONE)
 }
 
 /** 一个项目的全部资料图片 */
@@ -196,6 +210,8 @@ function keysFor(change: DataChange): string[] {
       return [KEY.styles]
     case 'library-models':
       return [KEY.models]
+    case 'library-assets2d':
+      return [KEY.libAssets2D]
     case 'projects':
       return [KEY.projects]
     // 项目列表里有名称、封面和笔记数、资料数，这几类变化也要刷新列表
@@ -207,6 +223,8 @@ function keysFor(change: DataChange): string[] {
       return [KEY.assets(change.projectId), KEY.projects]
     case 'models':
       return [KEY.projectModels(change.projectId), KEY.projects]
+    case 'assets2d':
+      return [KEY.assets2d(change.projectId), KEY.projects]
     case 'sprites':
       return [KEY.sprites(change.projectId)]
   }

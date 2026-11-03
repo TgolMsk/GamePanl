@@ -7,6 +7,7 @@ import { hud } from '@renderer/app/hud'
 import { isCmdKey, isPlainKey, useMainKeys } from '@renderer/screens/Library/keys'
 import { showError } from '@renderer/screens/Library/shared'
 import {
+  characterPrefix,
   characterSignature,
   processCharacter,
   retainActions,
@@ -17,16 +18,21 @@ import {
 } from '@renderer/sprites/engine'
 import { stripRgba } from '@renderer/sprites/pipeline'
 import { Button, ConfirmSheet, EmptyState, Icon, Sheet, TextField, Toolbar, cx } from '@renderer/ui'
-import type { SpriteImportResult } from '@shared/api'
+import { spriteRefUrl, type SpriteImportResult } from '@shared/api'
 import type { ID } from '@shared/types'
-import type { SpriteAction, SpriteActionParams, SpriteCharacter, SpriteFrameEdit, SpriteOwner, SpriteSettings } from '@shared/sprites'
+import type { SpriteAction, SpriteActionParams, SpriteCharacter, SpriteFacing, SpriteFrameEdit, SpriteOwner, SpriteSettings } from '@shared/sprites'
+import { buildSpritePrompt } from '@shared/sprites'
 import { sheetCols } from './bundle'
 import { Inspector } from './Inspector'
 import { PixelBar } from './PixelBar'
 import { ExportSheet, WatermarkSheet } from './Sheets'
 import { FirstFrame, setEdit, Stage } from './Stage'
-
-const SEL_KEY = (owner: SpriteOwner): string => `gamepanl.sprites.sel.${owner ?? 'library'}`
+import { SEL_KEY, rememberSpriteSelection } from './selection'
+import { Refs } from './Refs'
+import { AnchorSheet } from './Anchor'
+import { Generate, PromptSheet } from './Generate'
+import { TemplateSheet } from './TemplateSheet'
+import { NewGroupSheet, AddPlannedSheet, ExtractSheet } from './PlanSheets'
 
 function restoreSel(owner: SpriteOwner): { c: ID | null; a: ID | null } {
   try {
@@ -37,19 +43,31 @@ function restoreSel(owner: SpriteOwner): { c: ID | null; a: ID | null } {
   }
 }
 
-const isVideoName = (n: string): boolean => /\.(mp4|mov|m4v)$/i.test(n)
+const isSpriteFile = (n: string): boolean => /\.(mp4|mov|m4v|png|jpe?g|webp)$/i.test(n)
+const COLLAPSED_KEY = 'gamepanl.sprites.collapsed'
+const videoCount = (c: SpriteCharacter): number => c.actions.filter((a) => a.video).length
+const groupId = (c: SpriteCharacter, a: SpriteAction): ID | null => c.groups.some((g) => g.id === a.group) ? a.group : null
+
+function restoreCollapsed(): Record<string, boolean> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '{}')
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).filter(([, v]) => v === true)) : {}
+  } catch { return {} }
+}
 
 function reportImport(r: SpriteImportResult): void {
   const made = [...r.created, ...r.merged]
-  if (made.length === 0) {
-    hud.show(r.skipped[0] ? `没有导入：${r.skipped[0].reason}` : '没有导入任何视频')
-    return
-  }
   const parts: string[] = []
-  if (r.created.length) parts.push(r.created.length === 1 ? `新角色「${r.created[0].name}」· ${r.created[0].actions.length} 个动作` : `${r.created.length} 个新角色`)
-  if (r.merged.length) parts.push(`动作加进了「${r.merged.map((c) => c.name).join('、')}」`)
+  if (r.created.length) parts.push(r.created.map((c) => `新角色「${c.name}」`).join('、'))
+  if (r.placed.length) {
+    const how = { take: '新版本', filled: '补上了', new: '新动作' }
+    const names = r.placed.slice(0, 3).map((p) => `${p.action}（${how[p.how]}）`).join('、')
+    parts.push(`${r.placed.length} 个视频放进了动作：${names}${r.placed.length > 3 ? '…' : ''}`)
+  }
+  if (r.refs) parts.push(`${r.refs} 张人物图`)
   if (r.skipped.length) parts.push(`跳过 ${r.skipped.length} 个（${r.skipped[0].reason}）`)
-  hud.show(parts.join('；'), { ok: r.skipped.length === 0 })
+  if (parts.length || made.length) hud.show(parts.join('；') || '没有导入任何文件', { ok: r.skipped.length === 0 })
 }
 
 function phaseText(run: CharacterRun | undefined, a: SpriteAction, out: ActionOutput | undefined): { text: string; err?: boolean } {
@@ -64,7 +82,7 @@ function phaseText(run: CharacterRun | undefined, a: SpriteAction, out: ActionOu
 /** 项目 · 序列帧 */
 export default function ProjectSpritesScreen({ projectId }: { projectId: string }): React.JSX.Element {
   const project = useProject(projectId)
-  return <SpritesScreen owner={projectId} title={project.data?.name ?? ''} projectHeight={project.data?.sizes?.character?.h ?? null} />
+  return <SpritesScreen key={projectId} owner={projectId} title={project.data?.name ?? ''} projectHeight={project.data?.sizes?.character?.h ?? null} />
 }
 
 /** 全局库 · 序列帧：不属于哪个项目，导出时可以存进图片素材 */
@@ -80,7 +98,8 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   const chars = useSpriteCharacters(owner)
   const [sel, setSel] = useState(() => restoreSel(owner))
   const ch = chars.data.find((c) => c.id === sel.c) ?? chars.data[0] ?? null
-  const action = ch?.actions.find((a) => a.id === sel.a) ?? ch?.actions[0] ?? null
+  const action = sel.c === ch?.id && sel.a === 'refs' ? null : ch?.actions.find((a) => a.id === sel.a) ?? ch?.actions[0] ?? null
+  const refsSelected = !!ch && !action
   const run = useSpriteRuns((s) => (ch ? s[ch.id] : undefined))
   const runs = useSpriteRuns()
   const output = run?.output ?? null
@@ -90,23 +109,42 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   const [playing, setPlaying] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [wmOpen, setWmOpen] = useState(false)
-  const [renaming, setRenaming] = useState<{ kind: 'char' | 'action'; id: ID; value: string } | null>(null)
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [groupOpen, setGroupOpen] = useState(false)
+  const [plannedOpen, setPlannedOpen] = useState(false)
+  /** 「从这个视频再抽一个动作」的原动作 */
+  const [extractFrom, setExtractFrom] = useState<ID | null>(null)
+  const [anchorFor, setAnchorFor] = useState<SpriteFacing | null>(null)
+  const [collapsed, setCollapsed] = useState(restoreCollapsed)
+  const [renaming, setRenaming] = useState<{ kind: 'char' | 'action' | 'group'; id: ID; value: string } | null>(null)
   const [deleting, setDeleting] = useState<{ kind: 'char' | 'action'; id: ID; name: string } | null>(null)
   const stageRef = useRef<HTMLElement>(null)
 
-  const select = (c: ID | null, a: ID | null): void => {
+  const select = (c: ID | null, a: ID | null, character?: SpriteCharacter): void => {
     setSel({ c, a })
-    try {
-      localStorage.setItem(SEL_KEY(owner), JSON.stringify({ c, a }))
-    } catch {
-      // 记不住只是下次回到第一个
+    rememberSpriteSelection(owner, c, a)
+    if (c && a && a !== 'refs') {
+      const target = character ?? chars.data.find((x) => x.id === c)
+      const act = target?.actions.find((x) => x.id === a)
+      if (target && act) setGroupCollapsed(c, groupId(target, act), false)
     }
+  }
+
+  const setGroupCollapsed = (c: ID, group: ID | null, closed: boolean): void => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [`${owner ?? 'library'}:${c}:${group ?? 'ungrouped'}`]: closed }
+      try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)) } catch { /* 下次仍可展开 */ }
+      return next
+    })
   }
 
   useEffect(() => {
     setCur(0)
     setPlaying(true)
-  }, [action?.id])
+    setPromptOpen(false)
+    setWmOpen(false)
+  }, [action?.id, action?.video])
 
   // 数据变了就重算（停顿 120 ms 再算，连续改参数时只算最后一次）；结果已经对得上就不算
   const sig = ch ? characterSignature(ch) : ''
@@ -116,7 +154,8 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   useEffect(() => {
     const c = chRef.current
     if (!c) return
-    retainActions(c.actions.map((a) => actionKey(owner, c, a)))
+    retainActions(c.actions.filter((a) => a.video).map((a) => actionKey(owner, c, a)), characterPrefix(owner, c))
+    if (!c.actions.some((a) => a.video)) return
     const done = useSpriteRuns.getState()[c.id]?.output?.character
     if (done && characterSignature(done) === sig) return
     const t = setTimeout(() => void processCharacter(owner, c), first.current ? 0 : 120)
@@ -126,13 +165,15 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
 
   const applyChar = (c: SpriteCharacter): void => chars.mutate((list) => list.map((x) => (x.id === c.id ? c : x)))
 
-  const guard = async (what: string, fn: () => Promise<SpriteCharacter | void>): Promise<void> => {
+  const guard = async (what: string, fn: () => Promise<SpriteCharacter | void>): Promise<boolean> => {
     try {
       const c = await fn()
       if (c) applyChar(c)
+      return true
     } catch (err) {
       showError(what, err)
       void chars.refresh()
+      return false
     }
   }
 
@@ -154,14 +195,19 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
     void guard('没能保存设置', () => window.gp.sprites.update(owner, ch.id, { settings }))
   }
 
-  const importVideos = async (paths?: string[]): Promise<void> => {
+  const importFiles = async (paths?: string[], target = false): Promise<void> => {
     try {
-      const r = await window.gp.sprites.create(owner, paths)
-      const made = [...r.created, ...r.merged]
+      const r = await window.gp.sprites.create(owner, paths, target ? { target: ch ? { id: ch.id, actionId: action?.id ?? null } : null } : undefined)
+      const made = [...new Map([...r.created, ...r.merged].map((c) => [c.id, c])).values()]
       if (made.length) {
         chars.mutate((list) => [...list.filter((c) => !made.some((m) => m.id === c.id)), ...made])
-        const c = r.created[0] ?? r.merged[0]
-        select(c.id, r.created[0] ? c.actions[0].id : c.actions[c.actions.length - 1].id)
+        const placed = r.placed[0]
+        const c = made.find((x) => x.id === placed?.characterId)
+          ?? made.find((x) => x.refs.length > (chars.data.find((old) => old.id === x.id)?.refs.length ?? 0))
+          ?? made[0]
+        select(c.id, placed?.actionId ?? 'refs')
+        const importedAction = c.actions.find((a) => a.id === placed?.actionId)
+        if (importedAction) setGroupCollapsed(c.id, groupId(c, importedAction), false)
       }
       if (made.length || r.skipped.length) reportImport(r)
     } catch (err) {
@@ -169,24 +215,35 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
     }
   }
 
-  const addActions = async (c: SpriteCharacter): Promise<void> => {
+  const addActions = async (c: SpriteCharacter, actionId?: ID): Promise<void> => {
     try {
-      const r = await window.gp.sprites.addActions(owner, c.id)
-      if (r.added.length) {
-        applyChar(r.character)
-        select(c.id, r.added[0].id)
-        hud.show(`已添加 ${r.added.length} 个动作到「${c.name}」`, { ok: r.skipped.length === 0 })
-      } else if (r.skipped.length) hud.show(`没有添加：${r.skipped[0].reason}`)
+      const r = await window.gp.sprites.addActions(owner, c.id, undefined, actionId)
+      applyChar(r.character)
+      if (r.placed.length || r.refs) {
+        select(c.id, r.placed[0]?.actionId ?? 'refs')
+        const importedAction = r.character.actions.find((a) => a.id === r.placed[0]?.actionId)
+        if (importedAction) setGroupCollapsed(c.id, groupId(r.character, importedAction), false)
+      }
+      reportImport({ ...r, created: [], merged: r.placed.length || r.refs ? [r.character] : [] })
     } catch (err) {
       showError('添加失败', err)
     }
   }
 
-  useFileDrop((paths) => void importVideos(paths), {
-    label: '松手导入动作视频',
-    hint: '一个文件夹是一个角色；和已有角色同名的会加进那个角色',
-    accept: (f) => isVideoName(f.name) || (f.type === '' && !/\.[^./]{1,6}$/.test(f.name)),
-    reject: '只能导入视频（mp4 / mov）或装着视频的文件夹'
+  const addRefs = async (c: SpriteCharacter): Promise<void> => {
+    try {
+      const r = await window.gp.sprites.addRefs(owner, c.id)
+      applyChar(r.character)
+      if (r.added) select(c.id, 'refs')
+      if (r.added || r.skipped.length) reportImport({ created: [], merged: r.added ? [r.character] : [], placed: [], refs: r.added, skipped: r.skipped })
+    } catch (err) { showError('添加人物图失败', err) }
+  }
+
+  useFileDrop((paths) => void importFiles(paths, true), {
+    label: ch ? `松手加到「${ch.name}」` : '松手导入',
+    hint: '视频按文件名归到动作，图片进人物素材；文件夹是一个新角色',
+    accept: (f) => isSpriteFile(f.name) || (f.type === '' && !/\.[^./]+$/.test(f.name)),
+    reject: '只能导入视频（mp4 / mov / m4v）、人物图（png / jpg / webp）或文件夹'
   })
 
   const copySheet = async (): Promise<void> => {
@@ -234,15 +291,24 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
 
   const charMenu = async (e: ReactMouseEvent, c: SpriteCharacter): Promise<void> => {
     e.preventDefault()
-    select(c.id, c.actions[0]?.id ?? null)
+    if (c.id !== ch?.id) select(c.id, c.actions[0]?.id ?? 'refs')
     const picked = await showContextMenu(e, [
       { id: 'add', label: '添加动作视频…' },
+      { id: 'refs', label: '添加人物图…' },
+      { id: 'template', label: '动作清单模板…' },
+      { id: 'planned', label: '添加待生成动作…' },
+      { id: 'group', label: '新建分组…' },
+      menuSeparator,
       { id: 'rename', label: '重命名…' },
-      { id: 'export', label: '导出…' },
+      { id: 'export', label: '导出…', enabled: videoCount(c) > 0 },
       menuSeparator,
       { id: 'delete', label: '删除角色', destructive: true }
     ])
     if (picked === 'add') void addActions(c)
+    else if (picked === 'refs') void addRefs(c)
+    else if (picked === 'template') setTemplateOpen(true)
+    else if (picked === 'planned') setPlannedOpen(true)
+    else if (picked === 'group') setGroupOpen(true)
     else if (picked === 'rename') setRenaming({ kind: 'char', id: c.id, value: c.name })
     else if (picked === 'export') setExporting(true)
     else if (picked === 'delete') setDeleting({ kind: 'char', id: c.id, name: c.name })
@@ -252,24 +318,71 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
     e.preventDefault()
     select(c.id, a.id)
     const k = c.actions.indexOf(a)
+    const group = groupId(c, a)
+    const siblings = c.actions.filter((x) => groupId(c, x) === group)
+    const position = siblings.indexOf(a)
     const picked = await showContextMenu(e, [
       { id: 'rename', label: '重命名…' },
-      { id: 'up', label: '上移', enabled: k > 0 },
-      { id: 'down', label: '下移', enabled: k < c.actions.length - 1 },
+      { id: 'move', label: '移到分组', submenu: [
+        ...c.groups.map((g) => ({ id: `group:${g.id}`, label: g.name, checked: g.id === group, enabled: g.id !== group })),
+        { id: 'ungrouped', label: '未分组', checked: group === null, enabled: group !== null }
+      ] },
+      { id: 'prompt', label: '复制生成提示词' },
+      { id: 'version', label: '添加新版本视频…' },
+      { id: 'extract', label: '从这个视频再抽一个动作…', enabled: !!a.video },
+      { id: 'up', label: '上移', enabled: position > 0 },
+      { id: 'down', label: '下移', enabled: position < siblings.length - 1 },
       menuSeparator,
       { id: 'delete', label: '删除动作', destructive: true }
     ])
     if (picked === 'rename') setRenaming({ kind: 'action', id: a.id, value: a.name })
+    else if (picked?.startsWith('group:') || picked === 'ungrouped') {
+      const nextGroup = picked === 'ungrouped' ? null : picked.slice(6)
+      void guard('没能移动动作', () => window.gp.sprites.updateAction(owner, c.id, a.id, { group: nextGroup })).then((ok) => {
+        if (ok) setGroupCollapsed(c.id, nextGroup, false)
+      })
+    } else if (picked === 'prompt') {
+      try {
+        await window.gp.clipboard.copyText(buildSpritePrompt(c, a).prompt)
+        hud.show('已复制生成提示词', { ok: true })
+      } catch (err) { showError('复制失败', err) }
+    } else if (picked === 'version') void addActions(c, a.id)
+    else if (picked === 'extract') setExtractFrom(a.id)
     else if (picked === 'up' || picked === 'down') {
       const order = c.actions.map((x) => x.id)
-      const j = picked === 'up' ? k - 1 : k + 1
+      const neighbor = siblings[position + (picked === 'up' ? -1 : 1)]
+      if (!neighbor) return
+      const j = c.actions.indexOf(neighbor)
       ;[order[k], order[j]] = [order[j], order[k]]
       void guard('没能调整顺序', () => window.gp.sprites.reorderActions(owner, c.id, order))
     } else if (picked === 'delete') setDeleting({ kind: 'action', id: a.id, name: a.name })
   }
 
-  const failed = ch && run ? ch.actions.filter((a) => run.phases[a.id] === 'error').map((a) => a.name) : []
-  const ready = !!output && !run?.running && characterSignature(output.character) === sig
+  const groupMenu = async (e: ReactMouseEvent, c: SpriteCharacter, id: ID): Promise<void> => {
+    const index = c.groups.findIndex((g) => g.id === id)
+    const group = c.groups[index]
+    if (!group) return
+    const picked = await showContextMenu(e, [
+      { id: 'rename', label: '重命名…' },
+      { id: 'up', label: '上移', enabled: index > 0 },
+      { id: 'down', label: '下移', enabled: index < c.groups.length - 1 },
+      menuSeparator,
+      { id: 'delete', label: '删除分组', destructive: true }
+    ])
+    if (picked === 'rename') setRenaming({ kind: 'group', id, value: group.name })
+    else if (picked === 'delete') {
+      void guard('没能删除分组', () => window.gp.sprites.update(owner, c.id, { groups: c.groups.filter((g) => g.id !== id) }))
+    } else if (picked === 'up' || picked === 'down') {
+      const groups = [...c.groups]
+      const next = index + (picked === 'up' ? -1 : 1)
+      if (!groups[next]) return
+      ;[groups[index], groups[next]] = [groups[next], groups[index]]
+      void guard('没能调整分组顺序', () => window.gp.sprites.update(owner, c.id, { groups }))
+    }
+  }
+
+  const failed = ch && run ? ch.actions.filter((a) => a.video && run.phases[a.id] === 'error').map((a) => a.name) : []
+  const ready = !!ch && videoCount(ch) > 0 && !!output?.actions.length && !run?.running && characterSignature(output.character) === sig
 
   let body: React.ReactNode
   if (chars.loading) body = null
@@ -278,10 +391,10 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
       <main className="screen-main">
         <EmptyState
           icon="film"
-          title="还没有序列帧"
-          hint="把 AI 生成的绿幕动作视频（mp4 / mov）拖到这里：一个文件夹是一个角色，里面每个视频是一个动作（idle、run、attack…）。导入后自动抠图、找循环、出像素帧。"
+          title="还没有角色"
+          hint="先拖入人物图（立绘、三视图）建角色，拿它去生成动作视频；也可以直接拖入绿幕动作视频：一个文件夹是一个角色，里面每个视频是一个动作（idle、run、attack…）。"
         >
-          <Button onClick={() => void importVideos()}>导入视频…</Button>
+          <Button onClick={() => void importFiles()}>导入…</Button>
         </EmptyState>
       </main>
     )
@@ -291,51 +404,68 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
         <nav className="sp-list" aria-label="角色与动作">
           {chars.data.map((c) => {
             const r = runs[c.id]
+            const expanded = c.id === ch.id
+            const videos = videoCount(c)
+            const ungrouped = c.actions.filter((a) => groupId(c, a) === null)
+            const groups = [
+              ...c.groups.map((g) => ({ ...g, actions: c.actions.filter((a) => a.group === g.id) })),
+              ...(ungrouped.length ? [{ id: null, name: '未分组', actions: ungrouped }] : [])
+            ]
             return (
               <div key={c.id} style={{ display: 'contents' }}>
-                <div className="sp-chr" onContextMenu={(e) => void charMenu(e, c)} onDoubleClick={() => setRenaming({ kind: 'char', id: c.id, value: c.name })}>
-                  <span className="nm">{c.name}</span>
-                  <span className="ct">{c.actions.length}</span>
-                  <button type="button" className="more sp-add" style={{ height: 22, padding: '0 4px' }} aria-label={`${c.name} 的更多操作`} onClick={(e) => void charMenu(e, c)}>
+                <div className={cx('sp-chr', expanded && 'selected')} onContextMenu={(e) => void charMenu(e, c)}>
+                  <button type="button" className="sp-chr-select" aria-expanded={expanded} onClick={() => select(c.id, expanded ? (action?.id ?? 'refs') : c.actions[0]?.id ?? 'refs')} onDoubleClick={() => setRenaming({ kind: 'char', id: c.id, value: c.name })}>
+                    <span className="sp-avatar">{c.mainRef ? <img src={spriteRefUrl(owner, c.id, c.mainRef, 64)} alt="" /> : <Icon name="film" size={16} />}</span>
+                    <span className="nm">{c.name}</span>
+                    <span className="ct">{videos === c.actions.length ? videos : `${videos}/${c.actions.length}`}</span>
+                  </button>
+                  <button type="button" className="more sp-add" aria-label={`${c.name} 的更多操作`} onClick={(e) => void charMenu(e, c)}>
                     <Icon name="ellipsis" size={14} />
                   </button>
                 </div>
-                {c.actions.map((a) => {
-                  const o = r?.output?.actions.find((x) => x.actionId === a.id)
-                  const ph = phaseText(r, a, o)
-                  const on = c.id === ch.id && a.id === action?.id
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      className={cx('sp-act', on && 'on')}
-                      onClick={() => select(c.id, a.id)}
-                      onContextMenu={(e) => void actionMenu(e, c, a)}
-                      title={a.sourceName}
-                    >
-                      <span className="th checker">
-                        <FirstFrame out={o} size={40} />
-                      </span>
-                      <span className="tx">
-                        <span className="nm">{a.name}</span>
-                        <span className={cx('mt', ph.err && 'err')}>{ph.text}</span>
-                      </span>
-                      {!!o?.warnings && <span className="sp-badge" title={`${o.warnings} 个质检警告`}>{o.warnings}</span>}
-                    </button>
-                  )
-                })}
-                {c.id === ch.id && (
-                  <button type="button" className="sp-add" onClick={() => void addActions(c)}>
-                    <Icon name="plus" size={12} strokeWidth={2} />
-                    添加动作视频…
+                {expanded && <>
+                  <button type="button" className={cx('sp-refs-row', refsSelected && 'on')} onClick={() => select(c.id, 'refs')} aria-current={refsSelected ? 'page' : undefined}>
+                    <Icon name="photo" size={16} /><span>人物素材</span><span className="ct">{c.refs.length}</span>
                   </button>
-                )}
+                  {groups.map((g) => {
+                    const closed = collapsed[`${owner ?? 'library'}:${c.id}:${g.id ?? 'ungrouped'}`] === true
+                    return <div key={g.id ?? 'ungrouped'} className="sp-group">
+                      <button type="button" className={cx('sp-group-heading', closed && 'closed')} aria-expanded={!closed} onClick={() => setGroupCollapsed(c.id, g.id, !closed)} onContextMenu={g.id ? (e) => void groupMenu(e, c, g.id!) : undefined}>
+                        <Icon name="chevron.down" size={11} /><span className="nm">{g.name}</span><span className="ct">{g.actions.filter((a) => a.video).length}/{g.actions.length}</span>
+                      </button>
+                      {!closed && g.actions.map((a) => {
+                        const o = a.video ? r?.output?.actions.find((x) => x.actionId === a.id) : undefined
+                        const ph = a.video ? phaseText(r, a, o) : { text: '待生成' }
+                        const on = a.id === action?.id
+                        return <button key={a.id} type="button" className={cx('sp-act', on && 'on')} onClick={() => select(c.id, a.id)} onContextMenu={(e) => void actionMenu(e, c, a)} title={a.video ? a.sourceName : `${a.name} · 待生成`} aria-current={on ? 'page' : undefined}>
+                          <span className={cx('th', a.video ? 'checker' : 'planned')}>{a.video ? <FirstFrame out={o} size={40} /> : <Icon name="sparkles" size={18} />}</span>
+                          <span className="tx"><span className="nm">{a.name}</span><span className={cx('mt', ph.err && 'err')}>{ph.text}{a.takes.length > 1 ? ` · ${a.takes.length} 个版本` : ''}</span></span>
+                          {!!o?.warnings && <span className="sp-badge" title={`${o.warnings} 个质检警告`}>{o.warnings}</span>}
+                        </button>
+                      })}
+                    </div>
+                  })}
+                  <button type="button" className="sp-add" onClick={() => void addActions(c)}>
+                    <Icon name="plus" size={12} strokeWidth={2} />添加动作视频…
+                  </button>
+                  <button type="button" className="sp-add" onClick={() => setPlannedOpen(true)}>
+                    <Icon name="sparkles" size={12} />添加待生成动作…
+                  </button>
+                </>}
               </div>
             )
           })}
         </nav>
-        {action ? (
+        {refsSelected ? <Refs key={ch.id} owner={owner} ch={ch} onChange={applyChar} onSelectAction={(id) => select(ch.id, id)} onTemplate={() => setTemplateOpen(true)} onAnchor={setAnchorFor} /> : action && !action.video ? (
+          <Generate key={action.id} owner={owner} ch={ch} action={action} onChange={applyChar} setParams={setParams} onRefs={() => select(ch.id, 'refs')} onImport={() => void addActions(ch, action.id)} onAnchor={setAnchorFor} />
+        ) : action ? (
           <Stage
+            owner={owner}
+            ch={ch}
+            onChange={applyChar}
+            onAddVersion={() => void addActions(ch, action.id)}
+            onPrompt={() => setPromptOpen(true)}
+            onExtract={() => setExtractFrom(action.id)}
             action={action}
             out={out}
             phase={run?.phases[action.id]}
@@ -350,14 +480,8 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
             stageRef={stageRef}
             pixelBar={<PixelBar ch={ch} action={action} projectHeight={projectHeight} onSettings={setSettings} onParams={setParams} />}
           />
-        ) : (
-          <main className="screen-main">
-            <EmptyState icon="film" title="这个角色还没有动作">
-              <Button onClick={() => void addActions(ch)}>添加动作视频…</Button>
-            </EmptyState>
-          </main>
-        )}
-        <Inspector
+        ) : null}
+        {action?.video && <Inspector
           ch={ch}
           action={action}
           output={output}
@@ -366,13 +490,13 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
           onParams={setParams}
           onApplyAll={() => {
             if (!action) return
-            void guard('没能应用', () => window.gp.sprites.applyParamsToAll(owner, ch.id, action.params)).then(() =>
-              hud.show(`已把「${action.name}」的参数用到全部 ${ch.actions.length} 个动作`, { ok: true })
+            void guard('没能应用', () => window.gp.sprites.applyParamsToAll(owner, ch.id, action.params)).then((ok) =>
+              ok && hud.show(`已把「${action.name}」的参数用到全部 ${videoCount(ch)} 个动作`, { ok: true })
             )
           }}
           onPickWatermark={() => setWmOpen(true)}
           onJump={jumpTo}
-        />
+        />}
       </>
     )
   }
@@ -384,8 +508,8 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
   return (
     <div className="screen">
       <Toolbar title={title} subtitle={subtitle}>
-        <Button icon="plus" onClick={() => void importVideos()}>
-          导入视频
+        <Button icon="plus" onClick={() => void importFiles()}>
+          导入…
         </Button>
         {ch && (
           <>
@@ -403,6 +527,25 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
       {ch && (
         <ExportSheet open={exporting} owner={owner} ch={ch} output={ready ? output : null} failed={failed} onClose={() => setExporting(false)} />
       )}
+      {ch && templateOpen && <TemplateSheet key={ch.id} owner={owner} ch={ch} onChange={applyChar} onClose={() => setTemplateOpen(false)} />}
+      {ch && groupOpen && <NewGroupSheet key={ch.id} owner={owner} ch={ch} onChange={applyChar} onClose={() => setGroupOpen(false)} />}
+      {ch && extractFrom && (
+        <ExtractSheet
+          owner={owner}
+          ch={ch}
+          actionId={extractFrom}
+          onChange={applyChar}
+          onSelectAction={(id, c) => {
+            select(ch.id, id, c)
+            const added = c.actions.find((x) => x.id === id)
+            if (added) setGroupCollapsed(ch.id, groupId(c, added), false)
+          }}
+          onClose={() => setExtractFrom(null)}
+        />
+      )}
+      {ch && plannedOpen && <AddPlannedSheet key={ch.id} owner={owner} ch={ch} onChange={applyChar} onSelectAction={(id, c) => select(ch.id, id, c)} onClose={() => setPlannedOpen(false)} />}
+      {ch && anchorFor && <AnchorSheet key={`${ch.id}:${anchorFor}`} owner={owner} ch={ch} facing={anchorFor} onChange={applyChar} onClose={() => setAnchorFor(null)} />}
+      {ch && action && promptOpen && <PromptSheet key={action.id} owner={owner} ch={ch} action={action} onChange={applyChar} onClose={() => setPromptOpen(false)} />}
       {action && (
         <WatermarkSheet
           out={wmOpen ? (out ?? null) : null}
@@ -419,20 +562,26 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
         onClose={() => setRenaming(null)}
         onSave={async (name) => {
           if (!renaming || !ch) return
-          const target = chars.data.find((c) => (renaming.kind === 'char' ? c.id === renaming.id : c.actions.some((a) => a.id === renaming.id)))
+          const target = chars.data.find((c) => renaming.kind === 'char' ? c.id === renaming.id : renaming.kind === 'group' ? c.groups.some((g) => g.id === renaming.id) : c.actions.some((a) => a.id === renaming.id))
           if (!target) return
-          await guard('没能重命名', () =>
+          if (renaming.kind === 'group' && target.groups.some((g) => g.id !== renaming.id && g.name.toLowerCase() === name.toLowerCase())) {
+            hud.show('已经有这个分组名了，换一个名字吧')
+            return
+          }
+          const ok = await guard('没能重命名', () =>
             renaming.kind === 'char'
               ? window.gp.sprites.update(owner, target.id, { name })
+              : renaming.kind === 'group'
+                ? window.gp.sprites.update(owner, target.id, { groups: target.groups.map((g) => g.id === renaming.id ? { ...g, name } : g) })
               : window.gp.sprites.updateAction(owner, target.id, renaming.id, { name })
           )
-          setRenaming(null)
+          if (ok) setRenaming(null)
         }}
       />
       <ConfirmSheet
         open={deleting !== null}
         title={deleting?.kind === 'char' ? `删除角色「${deleting?.name}」？` : `删除动作「${deleting?.name}」？`}
-        message={deleting?.kind === 'char' ? '角色和拷进来的源视频会移到废纸篓，已经导出的文件不受影响。' : '这个动作的源视频会移到废纸篓。'}
+        message={deleting?.kind === 'char' ? '角色、人物图和拷进来的源视频会移到废纸篓，已经导出的文件不受影响。' : '这个动作会被删除，已有的各版本视频会移到废纸篓。'}
         confirmLabel="移到废纸篓"
         destructive
         onCancel={() => setDeleting(null)}
@@ -442,9 +591,9 @@ function SpritesScreen({ owner, title, projectHeight }: { owner: SpriteOwner; ti
           const target = chars.data.find((c) => (d.kind === 'char' ? c.id === d.id : c.actions.some((a) => a.id === d.id)))
           if (target) {
             if (d.kind === 'char') {
-              await guard('没能删除', () => window.gp.sprites.remove(owner, target.id))
+              if (!await guard('没能删除', () => window.gp.sprites.remove(owner, target.id))) return
               chars.mutate((list) => list.filter((c) => c.id !== target.id))
-            } else await guard('没能删除', () => window.gp.sprites.deleteAction(owner, target.id, d.id))
+            } else if (!await guard('没能删除', () => window.gp.sprites.deleteAction(owner, target.id, d.id))) return
           }
           setDeleting(null)
         }}
@@ -458,7 +607,7 @@ function RenameSheet({
   onClose,
   onSave
 }: {
-  value: { kind: 'char' | 'action'; value: string } | null
+  value: { kind: 'char' | 'action' | 'group'; value: string } | null
   onClose: () => void
   onSave: (name: string) => Promise<void>
 }): React.JSX.Element {
@@ -469,14 +618,14 @@ function RenameSheet({
     if (ok) void onSave(draft.trim())
   }
   const hint = useMemo(
-    () => (value?.kind === 'action' ? '动作名就是导出的动画名和文件夹名（idle、run、attack…）' : '角色名就是导出的文件夹名'),
+    () => (value?.kind === 'action' ? '动作名就是导出的动画名和文件夹名（idle、run、attack…）' : value?.kind === 'group' ? '给这一组动作起个名字' : '角色名就是导出的文件夹名'),
     [value?.kind]
   )
   return (
     <Sheet
       open={value !== null}
       onClose={onClose}
-      title={value?.kind === 'char' ? '重命名角色' : '重命名动作'}
+      title={value?.kind === 'char' ? '重命名角色' : value?.kind === 'group' ? '重命名分组' : '重命名动作'}
       subtitle={hint}
       width={420}
       footer={
@@ -491,6 +640,8 @@ function RenameSheet({
     >
       <TextField
         autoFocus
+        maxLength={value?.kind === 'char' ? 80 : 40}
+        aria-label={value?.kind === 'group' ? '分组名称' : value?.kind === 'char' ? '角色名称' : '动作名称'}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {

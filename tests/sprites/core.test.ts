@@ -4,8 +4,9 @@ import assert from 'node:assert/strict'
 import { despill, Keyer, openMask } from '@renderer/sprites/core/keying'
 import { FrameDiff, findLoop, pickLoop, pickOnce } from '@renderer/sprites/core/loop'
 import { layoutCharacter, type ActionGeometry } from '@renderer/sprites/core/layout'
-import { buildPalette } from '@renderer/sprites/core/palette'
-import { maskCount, roundHalfEven, seededRandom, type RgbFrame } from '@renderer/sprites/core/util'
+import { downsampleMode } from '@renderer/sprites/core/downsample'
+import { buildPalette, nearest, type Palette } from '@renderer/sprites/core/palette'
+import { maskCount, roundHalfEven, sampleIndices, sampleIndicesSparse, seededRandom, type RgbFrame } from '@renderer/sprites/core/util'
 import { detectActionName } from '@shared/sprites'
 
 const KEY = { mode: 'auto' as const, hueTol: 35, satMin: 0.25, valMin: 0.2, distTol: 0.15 }
@@ -171,6 +172,54 @@ test('动作名识别', () => {
   assert.equal(detectActionName('剑士-攻击-02'), 'attack')
   assert.equal(detectActionName('hero idle v2'), 'idle')
   assert.equal(detectActionName('summer_landscape'), null)
+})
+
+test('稀疏抽样和原抽样下标、顺序完全一样', () => {
+  for (const [n, k, seed] of [[10, 3, 0], [1000, 999, 1], [500000, 300, 0], [123457, 40000, 7]]) {
+    assert.deepEqual(sampleIndicesSparse(n, k, seed), sampleIndices(n, k, seed))
+  }
+})
+
+test('mode 缩小：按格子取最多的颜色（同票取下标小的），前景不足阈值的格子透明', () => {
+  // 逐格数票的直白写法当对照
+  const rnd = seededRandom(3)
+  const w = 37
+  const h = 29
+  const pal: Palette = [[250, 240, 230], [200, 40, 40], [40, 200, 40], [40, 40, 200], [10, 10, 10]]
+  const mask = { width: w, height: h, data: new Uint8Array(w * h) }
+  const rgb: RgbFrame = { width: w, height: h, data: new Uint8Array(w * h * 3) }
+  for (let i = 0; i < w * h; i++) {
+    mask.data[i] = rnd() < 0.7 ? 1 : 0
+    const c = pal[Math.floor(rnd() * pal.length)]
+    for (let j = 0; j < 3; j++) rgb.data[i * 3 + j] = Math.max(0, Math.min(255, c[j] + Math.round((rnd() - 0.5) * 60)))
+  }
+  const box = { x0: 2.5, y0: 1.25, x1: 35.5, y1: 27 }
+  const cw = 7
+  const ch = 6
+  const got = downsampleMode(mask, rgb, box, cw, ch, pal, 0.5)
+  const cell = (n: number, start: number, scale: number, out: number) => (i: number) => {
+    const o = Math.floor((i + 0.5 - start) * scale)
+    return o >= 0 && o < out ? o : -1
+  }
+  const ox = cell(w, box.x0, cw / (box.x1 - box.x0), cw)
+  const oy = cell(h, box.y0, ch / (box.y1 - box.y0), ch)
+  for (let cy = 0; cy < ch; cy++) {
+    for (let cx = 0; cx < cw; cx++) {
+      const votes = new Array(pal.length).fill(0)
+      let area = 0
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (ox(x) !== cx || oy(y) !== cy) continue
+          area++
+          const i = y * w + x
+          if (mask.data[i]) votes[nearest(pal, rgb.data[i * 3], rgb.data[i * 3 + 1], rgb.data[i * 3 + 2])]++
+        }
+      }
+      const total = votes.reduce((a, b) => a + b, 0)
+      const best = votes.indexOf(Math.max(...votes))
+      assert.equal(got.index[cy * cw + cx], total > 0 && total >= 0.5 * Math.max(1, area) ? best : 255, `格子 ${cx},${cy}`)
+    }
+  }
 })
 
 console.log(`全部 ${passed} 项核心算法测试通过`)

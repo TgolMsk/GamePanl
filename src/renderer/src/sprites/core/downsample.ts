@@ -1,7 +1,7 @@
 // 缩小：mode（覆盖区域里出现最多的调色板颜色）或 box（预乘 Alpha 面积平均），Alpha 二值化；
 // 然后映射到调色板、加 1 像素外描边、四周留白，得到一帧 RGBA。
 
-import { nearestLookup, type Palette } from './palette'
+import { nearestLookup, paletteLookup, type Palette } from './palette'
 import type { Mask, RgbFrame } from './util'
 
 /** 源画面（工作分辨率）里的裁切框，可以是小数 */
@@ -51,41 +51,57 @@ export function downsampleMode(
   for (let y = 0; y < h; y++) if (oy[y] >= 0) rowsIn[oy[y]]++
   for (let x = 0; x < w; x++) if (ox[x] >= 0) colsIn[ox[x]]++
   const k = pal.length
-  const counts = new Uint32Array(cw * ch * k)
-  const look = nearestLookup(pal)
+  const { table, fill } = paletteLookup(pal)
+  const fast = table.length > 0
   const md = mask.data
   const px = rgb.data
+  const index = new Uint8Array(cw * ch).fill(TRANSPARENT)
+  // 一行输出格子一行格子地数：源行按顺序落进输出行（cellMap 单调），计数只要一行大小。
+  // 计数时顺手记下最多的颜色（次数相同取下标小的，和数完再找结果一样），不用每格扫一遍调色板
+  const counts = new Uint32Array(cw * k)
+  const total = new Uint32Array(cw)
+  const best = new Uint32Array(cw)
+  const bestIdx = new Uint8Array(cw)
+  const flush = (cy: number): void => {
+    for (let cx = 0; cx < cw; cx++) {
+      const t = total[cx]
+      if (t === 0) continue
+      if (t >= thr * Math.max(1, rowsIn[cy] * colsIn[cx])) index[cy * cw + cx] = bestIdx[cx]
+      counts.fill(0, cx * k, cx * k + k)
+      total[cx] = 0
+      best[cx] = 0
+    }
+  }
+  // 只扫落在裁切框里的列
+  let xs = 0
+  while (xs < w && ox[xs] < 0) xs++
+  let xe = w
+  while (xe > xs && ox[xe - 1] < 0) xe--
+  let cur = -1
   for (let y = 0; y < h; y++) {
     const cy = oy[y]
     if (cy < 0) continue
+    if (cy !== cur) {
+      if (cur >= 0) flush(cur)
+      cur = cy
+    }
     const row = y * w
-    for (let x = 0; x < w; x++) {
+    for (let x = xs; x < xe; x++) {
       if (!md[row + x]) continue
-      const cx = ox[x]
-      if (cx < 0) continue
       const i = (row + x) * 3
-      counts[(cy * cw + cx) * k + look(px[i], px[i + 1], px[i + 2])]++
-    }
-  }
-  const index = new Uint8Array(cw * ch).fill(TRANSPARENT)
-  for (let cy = 0; cy < ch; cy++) {
-    for (let cx = 0; cx < cw; cx++) {
-      const c = cy * cw + cx
-      let total = 0
-      let best = 0
-      let bi = 0
-      for (let j = 0; j < k; j++) {
-        const v = counts[c * k + j]
-        total += v
-        if (v > best) {
-          best = v
-          bi = j
-        }
+      const key = (px[i] << 16) | (px[i + 1] << 8) | px[i + 2]
+      let j = fast ? table[key] : TRANSPARENT // 表里 255 = 还没算
+      if (j === TRANSPARENT) j = fill(key)
+      const cx = ox[x]
+      const v = ++counts[cx * k + j]
+      total[cx]++
+      if (v > best[cx] || (v === best[cx] && j < bestIdx[cx])) {
+        best[cx] = v
+        bestIdx[cx] = j
       }
-      const area = Math.max(1, rowsIn[cy] * colsIn[cx])
-      if (total > 0 && total >= thr * area) index[c] = bi
     }
   }
+  if (cur >= 0) flush(cur)
   return { width: cw, height: ch, index }
 }
 

@@ -236,6 +236,7 @@ const KEEP_ON_RESET: ReadonlyArray<keyof SpriteActionParams> = ['start', 'end', 
 
 function ActionParams(p: InspectorProps & { action: SpriteAction; open: boolean; onToggle: () => void }): React.JSX.Element {
   const a = p.action.params
+  const videoCount = p.ch.actions.filter((action) => action.video).length
   const an = p.out?.analysis
   const set = p.onParams
   const changed = (Object.keys(DEFAULT_SPRITE_PARAMS) as Array<keyof SpriteActionParams>).some(
@@ -343,8 +344,8 @@ function ActionParams(p: InspectorProps & { action: SpriteAction; open: boolean;
       </GroupList>
 
       <div className="sp-btns">
-        <Button size="sm" onClick={p.onApplyAll}>
-          应用到全部动作
+        <Button size="sm" onClick={p.onApplyAll} disabled={videoCount < 2}>
+          应用到全部 {videoCount} 个动作
         </Button>
         <Button
           size="sm"

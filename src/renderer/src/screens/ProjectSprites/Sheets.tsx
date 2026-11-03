@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { hud } from '@renderer/app/hud'
 import { showError } from '@renderer/screens/Library/shared'
 import { sourceFrame, type ActionOutput, type CharacterOutput } from '@renderer/sprites/engine'
-import { Button, GroupList, GroupRow, Segmented, Sheet, TextField } from '@renderer/ui'
+import { Button, Chip, GroupList, GroupRow, Segmented, Sheet, TextField } from '@renderer/ui'
+import type { SpriteAssetNames } from '@shared/api'
+import type { ID } from '@shared/types'
 import { safeFileName, type SpriteCharacter, type SpriteOwner, type SpriteWatermark } from '@shared/sprites'
 import { buildPayload, EXPORT_SCALES } from './bundle'
 import { prepCanvas, toBitmap } from './draw'
@@ -141,6 +143,14 @@ export function ExportSheet({
   const [manual, setManual] = useState(prefs.godotPrefix ?? '')
   const [godotMode, setGodotMode] = useState<'auto' | 'manual'>(prefs.godotPrefix ? 'manual' : 'auto')
   const [assets, setAssets] = useState(prefs.updateAssets)
+  const modeOf = (): 'off' | 'character' | 'action' => (prefs.toAssets2D ? prefs.assets2dMode : 'off')
+  const [mode, setMode] = useState(modeOf)
+  const toAssets2D = mode !== 'off'
+  const [skip, setSkip] = useState<Set<ID>>(() => new Set(prefs.skip))
+  // 资产名称：只记用户改过的（没改的用库里现在的名称或默认名，导出时不动库里的名称）
+  const [charName, setCharName] = useState<string | null>(null)
+  const [actNames, setActNames] = useState<Record<ID, string>>({})
+  const [libNames, setLibNames] = useState<Map<ID, string>>(new Map())
   const [scale, setScale] = useState(prefs.scale)
   const [busy, setBusy] = useState(false)
 
@@ -150,7 +160,19 @@ export function ExportSheet({
     setManual(prefs.godotPrefix ?? '')
     setGodotMode(prefs.godotPrefix ? 'manual' : 'auto')
     setAssets(prefs.updateAssets)
+    setMode(modeOf())
+    setSkip(new Set(prefs.skip))
+    setCharName(null)
+    setActNames({})
     setScale(prefs.scale)
+    let dead = false
+    void window.gp.library.listAssets2D().then(
+      (list) => !dead && setLibNames(new Map(list.map((x) => [x.id, x.name]))),
+      () => undefined
+    )
+    return () => {
+      dead = true
+    }
     // 只在打开时取一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -174,21 +196,52 @@ export function ExportSheet({
 
   const name = safeFileName(ch.name)
   const assetPlace = owner === null ? '图片素材' : '资料'
-  const sizes = output ? output.actions.map((o) => `${o.frameWidth * scale}×${o.frameHeight * scale}`) : []
+  // 按列表顺序列出能导出的动作；勾掉的这次不导出
+  const all = output ? ch.actions.filter((a) => output.actions.some((o) => o.actionId === a.id)) : []
+  const chosen = all.filter((a) => !skip.has(a.id))
+  const outs = output ? output.actions.filter((o) => !skip.has(o.actionId)) : []
+  const sizes = outs.map((o) => `${o.frameWidth * scale}×${o.frameHeight * scale}`)
   const sizeText = [...new Set(sizes)].slice(0, 3).join('、') + (new Set(sizes).size > 3 ? ' 等' : '')
-  const names = output ? output.actions.map((o) => ch.actions.find((a) => a.id === o.actionId)?.name ?? '') : []
+  const names = chosen.map((a) => a.name)
+  const toggle = (id: ID): void =>
+    setSkip((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const defaultCharName = (ch.asset2dId && libNames.get(ch.asset2dId)) || ch.name
+  const defaultActName = (a: SpriteCharacter['actions'][number]): string => (a.asset2dId && libNames.get(a.asset2dId)) || `${ch.name} · ${a.name}`
+  const nothing = chosen.length === 0
+  const failedVideos = failed.filter((name) => ch.actions.some((action) => action.video && action.name === name))
   const manualOk = /^res:\/\/[^\s]*$/.test(manual.trim())
 
   const run = async (): Promise<void> => {
-    if (!dir || !output) return
+    if ((!dir && !toAssets2D) || !output || nothing) return
     setBusy(true)
     try {
+      // 只记还在的动作，删掉的动作不留在 skip 里
+      const keepSkip = [...skip].filter((id) => ch.actions.some((a) => a.id === id))
       await window.gp.sprites.update(owner, ch.id, {
-        exportPrefs: { ...prefs, godotPrefix: godotMode === 'manual' && manualOk ? manual.trim() : null, updateAssets: assets, scale }
+        exportPrefs: {
+          ...prefs,
+          godotPrefix: godotMode === 'manual' && manualOk ? manual.trim() : null,
+          updateAssets: assets,
+          toAssets2D,
+          assets2dMode: mode === 'action' ? 'action' : 'character',
+          skip: keepSkip,
+          scale
+        }
       })
-      const r = await window.gp.sprites.export(owner, ch.id, buildPayload(ch, output, scale), dir)
+      const assetNames: SpriteAssetNames = {
+        ...(charName !== null && charName.trim() && { character: charName.trim() }),
+        actions: Object.fromEntries(Object.entries(actNames).filter(([id, v]) => v.trim() && chosen.some((a) => a.id === id)).map(([id, v]) => [id, v.trim()]))
+      }
+      const r = await window.gp.sprites.export(owner, ch.id, buildPayload(ch, output, scale, skip), dir, assetNames)
       onClose()
-      hud.show(`已导出「${ch.name}」· ${r.files} 个文件${r.assets ? `，${r.assets} 张存进了${assetPlace}` : ''}`, {
+      const stored = r.assets2d.length > 1 ? `${r.assets2d.length} 个 2D 资产` : r.assets2d[0] ? `2D 资产库「${r.assets2d[0].name}」` : ''
+      const done = dir ? `已导出「${ch.name}」· ${r.files} 个文件${stored ? `，已存进 ${stored}` : ''}` : `已存进 ${stored}`
+      hud.show(`${done}${r.assets ? `，${r.assets} 张存进了${assetPlace}` : ''}`, {
         action: { label: '在访达中显示', run: () => void window.gp.sprites.reveal(r.folder) }
       })
     } catch (err) {
@@ -216,43 +269,59 @@ export function ExportSheet({
       open={open}
       onClose={onClose}
       title={`导出「${ch.name}」`}
-      subtitle={output ? `${output.actions.length} 个动作 · ${output.palette.length} 色${scale > 1 ? ` · 放大 ${scale}×` : ''}` : '还在处理'}
+      subtitle={output ? `${chosen.length} / ${all.length} 个动作 · ${output.palette.length} 色${scale > 1 ? ` · 放大 ${scale}×` : ''}` : '还在处理'}
       width={600}
       footer={
         <>
           <span className="grow" />
           <Button onClick={onClose}>取消</Button>
-          <Button variant="primary" disabled={!dir || !output || busy} onClick={() => void run()}>
-            {busy ? '正在导出…' : '导出'}
+          <Button variant="primary" disabled={(!dir && !toAssets2D) || !output || busy || nothing} onClick={() => void run()}>
+            {busy ? '正在导出…' : dir || !toAssets2D ? '导出' : '存进 2D 资产库'}
           </Button>
         </>
       }
     >
       <div className="gsec" style={{ gap: 16, display: 'flex', flexDirection: 'column' }}>
         <GroupList>
+          {all.length > 1 && (
+            <GroupRow label="导出动作" top>
+              <div className="sp-export-acts" role="group" aria-label="导出哪些动作">
+                {all.map((a) => (
+                  <Chip key={a.id} selected={!skip.has(a.id)} onClick={() => toggle(a.id)}>
+                    {a.name}
+                  </Chip>
+                ))}
+              </div>
+            </GroupRow>
+          )}
           <GroupRow label="导出到" top>
-            <span className="sp-path">{dir ? `${dir}/${name}/` : '还没选'}</span>
+            <span className="sp-path">{dir ? `${dir}/${name}/` : '不导出到文件夹'}</span>
             <Button size="sm" onClick={() => void pick()}>
               选择…
             </Button>
+            {dir && <Button size="sm" onClick={() => setDir(null)}>不导出</Button>}
           </GroupRow>
-          <GroupRow label="Godot 路径" top>
-            <Segmented
-              ariaLabel="Godot 路径"
-              value={godotMode}
-              onChange={setGodotMode}
-              options={[
-                { value: 'auto', label: '自动' },
-                { value: 'manual', label: '手动' }
-              ]}
-            />
-          </GroupRow>
-          {godotMode === 'manual' ? (
-            <GroupRow label="res:// 目录">
-              <TextField value={manual} onChange={(e) => setManual(e.target.value)} placeholder="res://art/characters" style={{ maxWidth: 280 }} />
-            </GroupRow>
-          ) : (
-            <GroupRow label=" " value={detected ? `${detected.replace(/\/$/, '')}/${name}/` : dir ? '不在 Godot 项目里，资源里写相对路径' : '选好位置后自动识别'} />
+          {dir && (
+            <>
+              <GroupRow label="Godot 路径" top>
+                <Segmented
+                  ariaLabel="Godot 路径"
+                  value={godotMode}
+                  onChange={setGodotMode}
+                  options={[
+                    { value: 'auto', label: '自动' },
+                    { value: 'manual', label: '手动' }
+                  ]}
+                />
+              </GroupRow>
+              {godotMode === 'manual' ? (
+                <GroupRow label="res:// 目录">
+                  <TextField value={manual} onChange={(e) => setManual(e.target.value)} placeholder="res://art/characters" style={{ maxWidth: 280 }} />
+                </GroupRow>
+              ) : (
+                <GroupRow label=" " value={detected ? `${detected.replace(/\/$/, '')}/${name}/` : '不在 Godot 项目里，资源里写相对路径'} />
+              )}
+            </>
           )}
           <GroupRow label="放大倍数" top>
             <Segmented
@@ -274,12 +343,52 @@ export function ExportSheet({
               ]}
             />
           </GroupRow>
+          <GroupRow label="存进 2D 资产库" top>
+            <Segmented
+              ariaLabel="存进 2D 资产库"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'character', label: '整个角色一个' },
+                { value: 'action', label: '每个动作单独' },
+                { value: 'off', label: '不存' }
+              ]}
+            />
+          </GroupRow>
+          {mode === 'character' && (
+            <GroupRow label="资产名称">
+              <TextField
+                value={charName ?? defaultCharName}
+                maxLength={80}
+                aria-label="2D 资产名称"
+                placeholder={ch.name}
+                onChange={(e) => setCharName(e.target.value)}
+                style={{ maxWidth: 320 }}
+              />
+            </GroupRow>
+          )}
+          {mode === 'action' &&
+            chosen.map((a) => (
+              <GroupRow key={a.id} label={a.name}>
+                <TextField
+                  value={actNames[a.id] ?? defaultActName(a)}
+                  maxLength={80}
+                  aria-label={`「${a.name}」的 2D 资产名称`}
+                  placeholder={`${ch.name} · ${a.name}`}
+                  onChange={(e) => setActNames((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                  style={{ maxWidth: 320 }}
+                />
+              </GroupRow>
+            ))}
         </GroupList>
-        {failed.length > 0 && <div className="sp-msg err" style={{ textAlign: 'left', maxWidth: 'none' }}>处理失败、不会导出：{failed.join('、')}</div>}
+        {nothing && <div className="sp-msg err" style={{ textAlign: 'left', maxWidth: 'none' }}>至少选一个动作</div>}
+        {failedVideos.length > 0 && <div className="sp-msg err" style={{ textAlign: 'left', maxWidth: 'none' }}>处理失败、不会导出：{failedVideos.join('、')}</div>}
         <div className="group sp-files">{tree}</div>
         <div className="sp-note">
-          {godotPrefix ? `Godot 里直接用 ${godotPrefix.replace(/\/$/, '')}/${name}/${name}.tscn。` : ''}
-          再次导出到同一位置会覆盖这些文件，文件夹里你自己放的其他文件不会动。
+          {dir && godotPrefix ? `Godot 里直接用 ${godotPrefix.replace(/\/$/, '')}/${name}/${name}.tscn。` : ''}
+          {dir ? '再次导出到同一位置会覆盖这些文件，文件夹里你自己放的其他文件不会动。' : ''}
+          {mode === 'character' ? ' 2D 资产库里上次导出的角色会更新，分类和标签保留。' : ''}
+          {mode === 'action' ? ` 每个动作在 2D 资产库里是一个单独的资产（${chosen.length} 个），再次导出时更新各自那一个，分类和标签保留。` : ''}
           {assets ? ` ${assetPlace}里上次导出的图会换成新的。` : ''}
         </div>
       </div>

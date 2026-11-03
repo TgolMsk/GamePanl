@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useAppInfoSync } from './app/appInfo'
 import { focusSearch, useCommand, useCommandSync } from './app/commands'
-import { useLibImages, useProjects, usePrompts, useStyles } from './app/data'
+import { useLibAssets2D, useLibImages, useProjects, usePrompts, useStyles } from './app/data'
 import { go, HOME_ROUTE, useNav, useRoute, type Route } from './app/nav'
 import { useUpdateSync } from './app/update'
 import LibraryScreen from './screens/Library'
 import ProjectAssetsScreen from './screens/ProjectAssets'
 import ProjectConfigScreen from './screens/ProjectConfig'
 import ProjectModelsScreen from './screens/ProjectModels'
+import ProjectAssets2DScreen from './screens/ProjectAssets2D'
 import ProjectNotesScreen from './screens/ProjectNotes'
 import ProjectSpritesScreen from './screens/ProjectSprites'
 import { DropOverlay } from './shell/DropOverlay'
@@ -23,12 +24,13 @@ import { Hud } from './ui/Hud'
  */
 function useBoot(): boolean {
   const images = useLibImages()
+  const assets2d = useLibAssets2D()
   const prompts = usePrompts()
   const styles = useStyles()
   const projects = useProjects()
   const [booted, setBooted] = useState(false)
-  const ready = !images.loading && !prompts.loading && !styles.loading && !projects.loading
-  const firstRun = [images, prompts, styles, projects].every((r) => r.error === null && r.data.length === 0)
+  const ready = !images.loading && !assets2d.loading && !prompts.loading && !styles.loading && !projects.loading
+  const firstRun = [images, assets2d, prompts, styles, projects].every((r) => r.error === null && r.data.length === 0)
 
   useEffect(() => {
     if (booted || !ready) return
@@ -94,6 +96,8 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
           return <ProjectAssetsScreen key={route.projectId} projectId={route.projectId} />
         case 'models':
           return <ProjectModelsScreen key={route.projectId} projectId={route.projectId} />
+        case 'assets2d':
+          return <ProjectAssets2DScreen key={route.projectId} projectId={route.projectId} />
         case 'sprites':
           return <ProjectSpritesScreen key={route.projectId} projectId={route.projectId} />
       }

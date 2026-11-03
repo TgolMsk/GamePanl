@@ -2,8 +2,12 @@
 //   GAMEPANL_SHOT_SAMPLE=1   先导入示例内容
 //   GAMEPANL_SHOT_LAYOUT=1   额外截三种尺寸和序列帧弹出面板，检查布局并保存 layout-report.txt
 //   GAMEPANL_LOG_CONSOLE=1   把界面的 console 消息和渲染进程异常打印到终端（不截图时也生效）
+//   GAMEPANL_SHOT_ASSETS2D=<文件夹路径，多个用逗号分隔>   先导入 2D 资产，加入第一个项目，截图时选中第一项
 //   GAMEPANL_SHOT_SPRITES=<视频或文件夹路径，多个用逗号分隔>   先导入到第一个项目和全局库的序列帧（截序列帧页面时等处理完）
 //   GAMEPANL_SHOT_SPRITES_EXPORT=<目录>   截完序列帧页面后点「导出…」导出到这个目录
+//   GAMEPANL_SHOT_SPRITES_REF=<人物图路径>   配合下一项：加进人物素材，在人物素材页做定妆照（拍定妆照面板）
+//   GAMEPANL_SHOT_SPRITES_SCENE=<视频路径，多个用逗号分隔>   全局库第一个角色套用「横版动作」模板、把这些视频加成新版本，
+//                                      再多截三张：人物素材页、待生成动作的生成面板、有多个版本的动作
 // 页面切换由界面提供的 window.__gpDev.go(route) 完成（projectId 省略 = 第一个项目）。
 import { app } from 'electron'
 import type { BrowserWindow, WebContents } from 'electron'
@@ -13,6 +17,7 @@ import { join, resolve } from 'path'
 const SHOTS: Array<{ name: string; route: Record<string, string> }> = [
   { name: 'library-images', route: { view: 'library', tab: 'images' } },
   { name: 'library-models', route: { view: 'library', tab: 'models' } },
+  { name: 'library-assets2d', route: { view: 'library', tab: 'assets2d' } },
   { name: 'library-sprites', route: { view: 'library', tab: 'sprites' } },
   { name: 'library-prompts', route: { view: 'library', tab: 'prompts' } },
   { name: 'library-styles', route: { view: 'library', tab: 'styles' } },
@@ -20,6 +25,7 @@ const SHOTS: Array<{ name: string; route: Record<string, string> }> = [
   { name: 'project-notes', route: { view: 'project', tab: 'notes' } },
   { name: 'project-assets', route: { view: 'project', tab: 'assets' } },
   { name: 'project-models', route: { view: 'project', tab: 'models' } },
+  { name: 'project-assets2d', route: { view: 'project', tab: 'assets2d' } },
   { name: 'project-sprites', route: { view: 'project', tab: 'sprites' } }
 ]
 
@@ -227,6 +233,86 @@ async function exportSprites(win: BrowserWindow, dir: string): Promise<void> {
   console.log(`[devshot] 导出到 ${dir}`)
 }
 
+/** 人物素材、待生成、多版本三种页面：选中状态写进 localStorage，切走再切回来让页面重新读取 */
+async function spriteScene(win: BrowserWindow, dir: string, takes: string[], layout: boolean, refFile: string | null): Promise<LayoutGroup[]> {
+  const wc = win.webContents
+  const groups: LayoutGroup[] = []
+  const ids = (await wc.executeJavaScript(`(async () => {
+    const cs = await window.gp.sprites.list(null)
+    const c = cs[0]
+    if (!c) return null
+    await window.gp.sprites.applyTemplate(null, c.id, 'side-action')
+    await window.gp.sprites.update(null, c.id, { description: '银发剑士，蓝色上衣，右手持长剑，像素游戏风格' })
+    const refFile = ${JSON.stringify(refFile)}
+    if (refFile && !c.refs.some((r) => !r.facing)) await window.gp.sprites.addRefs(null, c.id, [refFile])
+    const r = await window.gp.sprites.addActions(null, c.id, ${JSON.stringify(takes)})
+    const ch = r.character
+    const run = ch.actions.find((a) => a.takes.length > 1) ?? ch.actions.find((a) => a.video)
+    const todo = ch.actions.find((a) => !a.video)
+    // 同一个视频再抽一个动作，导出面板里就有好几个动作可选
+    if (run && !ch.actions.some((a) => a.name === 'run_fast')) await window.gp.sprites.extractAction(null, ch.id, run.id, 'run_fast')
+    return { c: ch.id, run: run && run.id, todo: todo && todo.id }
+  })()`)) as { c: string; run: string | null; todo: string | null } | null
+  if (!ids) {
+    console.warn('[devshot] 全局库没有序列帧角色，跳过场景截图')
+    return groups
+  }
+  const pages: Array<[string, string | null]> = [['library-sprites-refs', 'refs'], ['library-sprites-generate', ids.todo], ['library-sprites-takes', ids.run]]
+  for (const [name, a] of pages) {
+    await wc.executeJavaScript(`localStorage.setItem('gamepanl.sprites.sel.library', ${JSON.stringify(JSON.stringify({ c: ids.c, a }))})`)
+    await wc.executeJavaScript(`window.__gpDev && window.__gpDev.go({ view: 'library', tab: 'images' })`)
+    await delay(400)
+    await wc.executeJavaScript(`window.__gpDev && window.__gpDev.go({ view: 'library', tab: 'sprites' })`)
+    await delay(900)
+    await waitForImages(win)
+    if (name === 'library-sprites-takes') await waitForSprites(win)
+    if (layout) groups.push(...(await checkLayout(win, dir, name)))
+    wc.sendInputEvent({ type: 'mouseMove', x: 260, y: 26 })
+    await delay(150)
+    const file = join(dir, `${name}.png`)
+    await fs.writeFile(file, (await wc.capturePage()).toPNG())
+    console.log(`[devshot] ${file}`)
+    // 人物素材页：做定妆照（真实的抠图、摆放、保存），之后的待生成页和多版本页都按有定妆照显示
+    if (name === 'library-sprites-refs' && refFile) {
+      await wc.executeJavaScript(`document.querySelector('.sp-anchor-tile')?.click()`)
+      await delay(2500)
+      if (layout) groups.push(...(await checkLayout(win, dir, 'library-sprites-anchor')))
+      const sheetFile = join(dir, 'library-sprites-anchor.png')
+      await fs.writeFile(sheetFile, (await wc.capturePage()).toPNG())
+      console.log(`[devshot] ${sheetFile}`)
+      await wc.executeJavaScript(`[...document.querySelectorAll('.sheet button')].find((b) => b.textContent.trim() === '存为定妆照')?.click()`)
+      await delay(1500)
+      await waitForImages(win)
+      const after = join(dir, 'library-sprites-refs-anchor.png')
+      await fs.writeFile(after, (await wc.capturePage()).toPNG())
+      console.log(`[devshot] ${after}`)
+    }
+  }
+  // 停在「多版本」那一页：再抽一个动作的面板、每个动作单独存的导出面板
+  const sheets: Array<[string, string]> = [
+    ['library-sprites-extract', `[...document.querySelectorAll('.sp-tl button')].find((b) => b.textContent.includes('再抽一个动作'))?.click()`],
+    ['library-sprites-export', `[...document.querySelectorAll('.toolbar button, button')].find((b) => b.textContent.trim() === '导出…' && !b.disabled)?.click()`]
+  ]
+  await wc.executeJavaScript(`window.gp.sprites.update(null, ${JSON.stringify(ids.c)}, { exportPrefs: { assets2dMode: 'action' } })`)
+  for (const [name, click] of sheets) {
+    await waitForSprites(win)
+    await wc.executeJavaScript(click)
+    await delay(500)
+    if (name === 'library-sprites-extract') {
+      wc.insertText('dash')
+      await delay(200)
+    }
+    if (layout) groups.push(...(await checkLayout(win, dir, name)))
+    const file = join(dir, `${name}.png`)
+    await fs.writeFile(file, (await wc.capturePage()).toPNG())
+    console.log(`[devshot] ${file}`)
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await delay(400)
+  }
+  return groups
+}
+
 async function capture(win: BrowserWindow, dir: string): Promise<void> {
   const wc = win.webContents
   const layout = process.env['GAMEPANL_SHOT_LAYOUT'] === '1'
@@ -235,6 +321,15 @@ async function capture(win: BrowserWindow, dir: string): Promise<void> {
   await wc.insertCSS(SHOT_CSS)
   if (process.env['GAMEPANL_SHOT_SAMPLE'] === '1') {
     await wc.executeJavaScript('window.gp.app.importSample()')
+  }
+  const asset2dPath = process.env['GAMEPANL_SHOT_ASSETS2D']
+  if (asset2dPath) {
+    await wc.executeJavaScript(`(async () => {
+      const r = await window.gp.library.importAssets2D(${JSON.stringify(asset2dPath.split(','))})
+      const ps = await window.gp.projects.list()
+      const ids = [...new Set([...r.added, ...r.existing].map((a) => a.id))]
+      if (ps[0] && ids.length) await window.gp.projects.addAssets2D(ps[0].id, ids)
+    })()`)
   }
   const spritePaths = process.env['GAMEPANL_SHOT_SPRITES']
   if (spritePaths) {
@@ -249,6 +344,15 @@ async function capture(win: BrowserWindow, dir: string): Promise<void> {
   for (const shot of SHOTS) {
     await wc.executeJavaScript(`window.__gpDev && window.__gpDev.go(${JSON.stringify(shot.route)})`)
     await delay(900)
+    if (shot.name.endsWith('-assets2d')) {
+      await wc.executeJavaScript(`document.querySelector('.a2d-card .hit')?.click()`)
+      for (let waited = 0; waited < 10_000; waited += 200) {
+        const ready = await wc.executeJavaScript(`!document.querySelector('.a2d-player-message')`)
+        if (ready) break
+        await delay(200)
+      }
+      await delay(300)
+    }
     await waitForImages(win)
     if (shot.name.endsWith('-sprites')) await waitForSprites(win)
     if (layout) layoutGroups.push(...await checkLayout(win, dir, shot.name))
@@ -262,6 +366,8 @@ async function capture(win: BrowserWindow, dir: string): Promise<void> {
     await fs.writeFile(file, image.toPNG())
     console.log(`[devshot] ${file}`)
   }
+  const scene = process.env['GAMEPANL_SHOT_SPRITES_SCENE']
+  if (scene) layoutGroups.push(...(await spriteScene(win, dir, scene.split(','), layout, process.env['GAMEPANL_SHOT_SPRITES_REF'] ?? null)))
   if (layout) {
     const total = layoutGroups.reduce((sum, group) => sum + group.issues.length, 0)
     const report = layoutGroups.map((group) =>

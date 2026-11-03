@@ -80,6 +80,51 @@ export interface LibModel {
   addedAt: ISODate
 }
 
+export const ASSET2D_CATEGORIES = ['角色', '怪物', '特效', '道具', '瓦片', 'UI', '背景', '其他'] as const
+export type Asset2DCategory = (typeof ASSET2D_CATEGORIES)[number]
+
+/** 2D 资产里的一帧：文件夹里的相对路径；rect 为 [x, y, w, h]，整张图为 null */
+export interface Asset2DFrame {
+  file: string
+  rect: [number, number, number, number] | null
+}
+
+/** 2D 资产里的一个动画 */
+export interface Asset2DAnimation {
+  name: string
+  fps: number
+  loop: boolean
+  frames: Asset2DFrame[]
+  /** 动作分组（移动、攻击…）；asset.json 里写了才有 */
+  group?: string
+}
+
+/** 全局库里的一个 2D 资产，整个文件夹存在 library/assets2d/<id>/ */
+export interface LibAsset2D {
+  id: ID
+  name: string
+  category: Asset2DCategory
+  tags: string[]
+  /** 预览图在文件夹里的相对路径；没有图片时为 null */
+  preview: string | null
+  /** 帧（静态资产为主图）的像素尺寸；读不出为 null */
+  frameSize: [number, number] | null
+  animations: Asset2DAnimation[]
+  imageCount: number
+  formats: string[]
+  hasAssetJson: boolean
+  source: string
+  /** 序列帧导出来源，再次导出时更新同一个资产 */
+  fromSprite: { owner: ID | null; characterId: ID } | null
+  /** 人物素材（立绘、三视图…）在文件夹里的相对路径；asset.json 的 references */
+  references?: string[]
+  importedFrom: string
+  bytes: number
+  fileCount: number
+  addedAt: ISODate
+  updatedAt: ISODate
+}
+
 export const PROMPT_CATEGORIES = ['风格', '用途', '约束', '构图', '负面词'] as const
 export type PromptCategory = (typeof PROMPT_CATEGORIES)[number]
 
@@ -185,6 +230,7 @@ export interface ProjectSummary {
   noteCount: number
   assetCount: number
   modelCount: number
+  asset2dCount: number
   /** 序列帧角色数 */
   spriteCount: number
   coverAssetId: ID | null
@@ -248,6 +294,19 @@ export interface ModelImportResult {
   /** 内容相同、已经在库里的 */
   existing: LibModel[]
   /** 没能导入的：路径和原因 */
+  skipped: Array<{ path: string; reason: string }>
+}
+
+/** 项目里的 2D 资产：只存全局库引用，存在 projects/<id>/assets2d.json */
+export interface ProjectAsset2D {
+  asset2dId: ID
+  addedAt: ISODate
+}
+
+/** 导入 2D 资产的结果 */
+export interface Asset2DImportResult {
+  added: LibAsset2D[]
+  existing: LibAsset2D[]
   skipped: Array<{ path: string; reason: string }>
 }
 
@@ -325,10 +384,12 @@ export type DataChange =
   | { kind: 'library-prompts' }
   | { kind: 'library-styles' }
   | { kind: 'library-models' }
+  | { kind: 'library-assets2d' }
   | { kind: 'projects' }
   | { kind: 'project'; projectId: ID }
   | { kind: 'notes'; projectId: ID }
   | { kind: 'assets'; projectId: ID }
   | { kind: 'models'; projectId: ID }
+  | { kind: 'assets2d'; projectId: ID }
   /** projectId 为 null：全局库的序列帧 */
   | { kind: 'sprites'; projectId: ID | null }

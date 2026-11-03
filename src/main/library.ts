@@ -14,6 +14,7 @@ import {
 import type { AddResult, Candidate, ImageStore } from './images'
 import { modifyJson, newId, nowIso, paths, readJson, updateJson } from './storage'
 import { listModels } from './models'
+import { listAssets2D } from './assets2d'
 import { dropThumbs } from './thumbs'
 import { asId, asLine, asObject, asOneOf, asString, asStringList, fail, has } from './validate'
 
@@ -238,6 +239,6 @@ export function deleteStyle(id: ID): Promise<void> {
 
 /** 全局库是否还是空的 */
 export async function libraryEmpty(): Promise<boolean> {
-  const [images, prompts, styles, models] = await Promise.all([listImages(), listPrompts(), listStyles(), listModels()])
-  return images.length === 0 && prompts.length === 0 && styles.length === 0 && models.length === 0
+  const [images, prompts, styles, models, assets2d] = await Promise.all([listImages(), listPrompts(), listStyles(), listModels(), listAssets2D()])
+  return images.length === 0 && prompts.length === 0 && styles.length === 0 && models.length === 0 && assets2d.length === 0
 }

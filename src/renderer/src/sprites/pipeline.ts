@@ -22,7 +22,7 @@ import {
   TRANSPARENT,
   type Indexed
 } from './core/downsample'
-import { despill, dropSpecks, estimateBackground, Keyer, openMask } from './core/keying'
+import { despill, dropSpecks, erode, estimateBackground, Keyer, openMask } from './core/keying'
 import type { ActionGeometry, ActionLayout } from './core/layout'
 import { FrameDiff, findLoop, pickLoop, pickOnce, type LoopInfo } from './core/loop'
 import { buildPalette, darkestIndex, type Palette } from './core/palette'
@@ -34,6 +34,7 @@ import {
   maskCount,
   normToPixels,
   sampleIndices,
+  sampleIndicesSparse,
   unionRect,
   type Mask,
   type NormRect,
@@ -125,8 +126,52 @@ interface Matte {
   rgb: RgbFrame
 }
 
+/** 裁到前景外接框的抠图：前景外面的颜色没人读，丢掉省内存 */
+interface SpareMatte {
+  width: number
+  height: number
+  box: Rect | null
+  mask: Uint8Array
+  rgb: Uint8Array
+  bytes: number
+}
+
+function packMatte(m: Matte): SpareMatte {
+  const { width: w, height: h } = m.mask
+  const box = maskBounds(m.mask)
+  const bw = box ? box.x1 - box.x0 : 0
+  const bh = box ? box.y1 - box.y0 : 0
+  const mask = new Uint8Array(bw * bh)
+  const rgb = new Uint8Array(bw * bh * 3)
+  if (box) {
+    for (let y = 0; y < bh; y++) {
+      const src = (box.y0 + y) * w + box.x0
+      mask.set(m.mask.data.subarray(src, src + bw), y * bw)
+      rgb.set(m.rgb.data.subarray(src * 3, (src + bw) * 3), y * bw * 3)
+    }
+  }
+  return { width: w, height: h, box, mask, rgb, bytes: mask.length + rgb.length + 64 }
+}
+
+function unpackMatte(s: SpareMatte): Matte {
+  const { width: w, height: h, box } = s
+  const mask = new Uint8Array(w * h)
+  const rgb = new Uint8Array(w * h * 3)
+  if (box) {
+    const bw = box.x1 - box.x0
+    for (let y = 0; y < box.y1 - box.y0; y++) {
+      const dst = (box.y0 + y) * w + box.x0
+      mask.set(s.mask.subarray(y * bw, (y + 1) * bw), dst)
+      rgb.set(s.rgb.subarray(y * bw * 3, (y + 1) * bw * 3), dst * 3)
+    }
+  }
+  return { mask: { width: w, height: h, data: mask }, rgb: { width: w, height: h, data: rgb } }
+}
+
 const ANALYSIS_SIDE = 160
 const WORK_CACHE_LIMIT = 40
+/** 每个动作的备用抠图最多占这么多内存（人物外接框大小，一般 0.5–1 MB 一帧） */
+const SPARE_BYTES = 160 * 1024 * 1024
 
 export class ActionPipeline {
   private analysis: RgbFrame[] | null = null
@@ -134,9 +179,16 @@ export class ActionPipeline {
   private loopCache = new Map<string, ReturnType<typeof findLoop>>()
   private work = new Map<string, RgbFrame>()
   private mattes = new Map<string, Matte>()
+  /** 当前片段用不到的抠图结果（裁到前景外接框）：拖回原来的片段、恢复删掉的帧时直接用 */
+  private spare = new Map<string, SpareMatte>()
+  private spareBytes = 0
   private boxCache = new Map<string, { rgb: Uint8Array; opaque: Uint8Array }>()
   /** 最近一次 analyze 的结果，samples / render 用 */
-  private current: { picks: number[]; mattes: Matte[]; res: AnalyzeResult; workW: number; workH: number } | null = null
+  private current: { picks: number[]; mattes: Matte[]; res: AnalyzeResult } | null = null
+  /** 最近一次 analyze 的工作分辨率（trim 之后看原片也按它） */
+  private workSize: [number, number] | null = null
+  /** 最近一次 analyze 的参数（JSON）：参数没变时直接返回上次的结果（改别的动作时这个动作不用重算） */
+  private lastOptions: string | null = null
 
   constructor(readonly src: FrameSource) {}
 
@@ -157,8 +209,8 @@ export class ActionPipeline {
     return frames
   }
 
-  /** 工作分辨率上的若干帧（有缓存） */
-  async workFrames(indices: number[], ww: number, wh: number): Promise<Map<number, RgbFrame>> {
+  /** 工作分辨率上的若干帧（有缓存）；超出缓存上限时 keep 里的不丢 */
+  async workFrames(indices: number[], ww: number, wh: number, keep: number[] = indices): Promise<Map<number, RgbFrame>> {
     const key = (i: number): string => `${ww}x${wh}:${i}`
     const missing = [...new Set(indices)].filter((i) => !this.work.has(key(i))).sort((a, b) => a - b)
     if (missing.length) {
@@ -174,10 +226,10 @@ export class ActionPipeline {
     }
     // 控制内存：只留最近用到的
     if (this.work.size > WORK_CACHE_LIMIT) {
-      const keep = new Set(indices.map(key))
+      const kept = new Set(keep.map(key))
       for (const k of this.work.keys()) {
         if (this.work.size <= WORK_CACHE_LIMIT) break
-        if (!keep.has(k)) this.work.delete(k)
+        if (!kept.has(k)) this.work.delete(k)
       }
     }
     return out
@@ -248,6 +300,9 @@ export class ActionPipeline {
   }
 
   async analyze(o: AnalyzeOptions): Promise<AnalyzeResult> {
+    const sig = JSON.stringify(o)
+    if (this.current && this.lastOptions === sig) return this.current.res
+    this.lastOptions = null
     const p = o.params
     const frames = await this.analysisFrames()
     const n = frames.length
@@ -316,23 +371,33 @@ export class ActionPipeline {
     const work = o.work ?? Math.min(Math.max(this.src.width, this.src.height), Math.max(720, o.height * 12))
     const [ww, wh] = fitSize(this.src.width, this.src.height, work)
     const need = [0, ...picks.map((x) => x.frame)]
-    const wf = await this.workFrames(need, ww, wh)
+    const matteKey = (i: number): string => `${ks.key}|${ww}x${wh}|${p.open}|${p.despill}|${i}`
+    // 抠过的帧（包括备用的）不用再解码
+    const wf = await this.workFrames(need.filter((i) => !this.mattes.has(matteKey(i)) && !this.spare.has(matteKey(i))), ww, wh, need)
     const wmWork = ks.wmNorm.map((r) => normToPixels(r, ww, wh))
     const matteOf = (i: number): Matte => {
-      const key = `${ks.key}|${ww}x${wh}|${p.open}|${p.despill}|${i}`
+      const key = matteKey(i)
       let m = this.mattes.get(key)
       if (!m) {
-        const f = wf.get(i) as RgbFrame
-        const mask = dropSpecks(openMask(ks.keyer.foreground(f, wmWork), p.open), Math.round(ww * wh * 0.0002))
-        m = { mask, rgb: p.despill ? despill(f, ks.bg) : f }
+        const s = this.spare.get(key)
+        if (s) {
+          m = unpackMatte(s)
+          this.spare.delete(key)
+          this.spareBytes -= s.bytes
+        } else {
+          const f = wf.get(i) as RgbFrame
+          const mask = dropSpecks(openMask(ks.keyer.foreground(f, wmWork), p.open), Math.round(ww * wh * 0.0002))
+          m = { mask, rgb: p.despill ? despill(f, ks.bg) : f }
+        }
+        // 不在这里按数量淘汰：一个动作选中的帧可能超过上限（整段单次动作 60 多帧），
+        // 边算边淘汰会把这次要用的挤掉，下次全部重算；算完由 retain() 只留这次用到的
         this.mattes.set(key, m)
-        if (this.mattes.size > WORK_CACHE_LIMIT) this.mattes.delete(this.mattes.keys().next().value as string)
       }
       return m
     }
     const pm = picks.map((x) => matteOf(x.frame))
     matteOf(0)
-    this.retain(need.map((i) => `${ww}x${wh}:${i}`), need.map((i) => `${ks.key}|${ww}x${wh}|${p.open}|${p.despill}|${i}`))
+    this.retain(need.map((i) => `${ww}x${wh}:${i}`), need.map(matteKey))
     let union: Rect | null = null
     let fgCount = 0
     for (const m of pm) {
@@ -393,7 +458,9 @@ export class ActionPipeline {
       fgCount,
       qc
     }
-    this.current = { picks: picks.map((x) => x.frame), mattes: pm, res, workW: ww, workH: wh }
+    this.current = { picks: picks.map((x) => x.frame), mattes: pm, res }
+    this.workSize = [ww, wh]
+    this.lastOptions = sig
     return res
   }
 
@@ -402,8 +469,70 @@ export class ActionPipeline {
     const w = new Set(workKeys)
     for (const k of [...this.work.keys()]) if (!w.has(k)) this.work.delete(k)
     const m = new Set(matteKeys)
-    for (const k of [...this.mattes.keys()]) if (!m.has(k)) this.mattes.delete(k)
+    for (const k of [...this.mattes.keys()]) if (!m.has(k)) this.toSpare(k)
+    this.trimSpare()
     this.boxCache.clear()
+  }
+
+  /** 这次不用的抠图裁小了留作备用 */
+  private toSpare(key: string): void {
+    const m = this.mattes.get(key)
+    if (!m) return
+    this.mattes.delete(key)
+    const s = packMatte(m)
+    this.spare.set(key, s)
+    this.spareBytes += s.bytes
+  }
+
+  /** 备用的超出上限时，最近不用的先丢 */
+  private trimSpare(): void {
+    for (const [k, s] of this.spare) {
+      if (this.spareBytes <= SPARE_BYTES) break
+      this.spare.delete(k)
+      this.spareBytes -= s.bytes
+    }
+  }
+
+  /**
+   * 暂时不用（换了角色、切到别的页面）：抠图全部裁小了留作备用，工作帧丢掉。
+   * 回来改参数时从备用里拿，不用重新解码、抠图；之后要先 analyze 才能取样、出图。
+   */
+  trim(): void {
+    for (const k of [...this.mattes.keys()]) this.toSpare(k)
+    this.trimSpare()
+    this.work.clear()
+    this.boxCache.clear()
+    this.current = null
+    this.lastOptions = null
+  }
+
+  /**
+   * 角色像素取样（和定妆照比颜色用）：选中各帧抠出来的部分，去掉边缘一圈（混着背景色），
+   * 均匀取最多 limit 个像素，RGB 连续排列。
+   */
+  colorSample(limit = 40000): Uint8Array {
+    const { mattes } = this.need()
+    const inner = mattes.map((m) => erode(m.mask))
+    const total = inner.reduce((t, m) => t + maskCount(m), 0)
+    const step = Math.max(1, Math.ceil(total / limit))
+    const out = new Uint8Array(Math.ceil(total / step) * 3)
+    let k = 0
+    let seen = 0
+    const u = this.need().res.geometry.union
+    inner.forEach((m, j) => {
+      const rgb = mattes[j].rgb.data
+      for (let y = u.y0; y < u.y1; y++) {
+        for (let i = y * m.width + u.x0, end = y * m.width + u.x1; i < end; i++) {
+          if (!m.data[i]) continue
+          if (seen++ % step === 0 && k + 3 <= out.length) {
+            out[k++] = rgb[i * 3]
+            out[k++] = rgb[i * 3 + 1]
+            out[k++] = rgb[i * 3 + 2]
+          }
+        }
+      }
+    })
+    return out.subarray(0, k)
   }
 
   private need(): NonNullable<ActionPipeline['current']> {
@@ -438,28 +567,38 @@ export class ActionPipeline {
       })
       return Uint8Array.from(parts)
     }
-    let total = 0
-    for (const m of cur.mattes) total += maskCount(m.mask)
-    const pool = new Uint8Array(total * 3)
-    let o = 0
+    // 前景按顺序编号（前景都在各帧前景的外接框里，只扫这一块），超过 quota 时固定种子抽样；
+    // 先定下抽哪几号再按编号顺序扫一遍取色，不用把全部前景像素先拷出来
+    const total = cur.res.fgCount
+    const u = cur.res.geometry.union
+    const n = Math.min(total, quota)
+    const out = new Uint8Array(n * 3)
+    let slot: Uint32Array
+    let wanted: Uint32Array
+    if (total <= quota) {
+      wanted = slot = Uint32Array.from({ length: n }, (_, k) => k)
+    } else {
+      const idx = sampleIndicesSparse(total, quota, 0)
+      slot = Uint32Array.from({ length: n }, (_, k) => k).sort((a, b) => idx[a] - idx[b])
+      wanted = Uint32Array.from(slot, (k) => idx[k])
+    }
+    let seen = 0
+    let p = 0
     for (const m of cur.mattes) {
       const md = m.mask.data
       const px = m.rgb.data
-      for (let i = 0; i < md.length; i++) {
-        if (!md[i]) continue
-        pool[o++] = px[i * 3]
-        pool[o++] = px[i * 3 + 1]
-        pool[o++] = px[i * 3 + 2]
+      const w = m.mask.width
+      for (let y = u.y0; y < u.y1 && p < n; y++) {
+        for (let i = y * w + u.x0, end = y * w + u.x1; i < end; i++) {
+          if (!md[i]) continue
+          if (seen++ !== wanted[p]) continue
+          const o = slot[p++] * 3
+          out[o] = px[i * 3]
+          out[o + 1] = px[i * 3 + 1]
+          out[o + 2] = px[i * 3 + 2]
+          if (p >= n) break
+        }
       }
-    }
-    if (total <= quota) return pool
-    const idx = sampleIndices(total, quota, 0)
-    const out = new Uint8Array(quota * 3)
-    for (let k = 0; k < quota; k++) {
-      const j = idx[k] * 3
-      out[k * 3] = pool[j]
-      out[k * 3 + 1] = pool[j + 1]
-      out[k * 3 + 2] = pool[j + 2]
     }
     return out
   }
@@ -495,8 +634,7 @@ export class ActionPipeline {
     crop: { x0: number; y0: number; x1: number; y1: number } | null,
     maxSide: number
   ): Promise<{ width: number; height: number; rgba: Uint8Array; crop: Rect }> {
-    const cur = this.current
-    const [ww, wh] = cur ? [cur.workW, cur.workH] : fitSize(this.src.width, this.src.height, 720)
+    const [ww, wh] = this.workSize ?? fitSize(this.src.width, this.src.height, 720)
     const f = (await this.workFrames([index], ww, wh)).get(index) as RgbFrame
     const r: Rect = crop
       ? {

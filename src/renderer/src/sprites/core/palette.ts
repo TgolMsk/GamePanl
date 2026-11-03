@@ -151,17 +151,67 @@ export function nearest(pal: Palette, r: number, g: number, b: number): number {
   return bi
 }
 
+/** 最近色表里「还没算」的标记（调色板最多 64 色，下标到不了 255） */
+const UNSET = 255
+/** 24 位颜色 → 最近色下标。一个 Worker 共用一张（16 MB），换了调色板才清空：
+ *  出图一次几十上百帧、几十万种颜色，帧之间大多重复，按帧建缓存会反复算最近色 */
+let lut: Uint8Array | null = null
+let lutPalette = ''
+
+export interface PaletteLookup {
+  /** key = r << 16 | g << 8 | b；值为 255 时还没算，调 fill */
+  table: Uint8Array
+  fill: (key: number) => number
+}
+
+/** 共用的最近色表。只在一次同步调用里用（换调色板会清空同一张表） */
+export function paletteLookup(pal: Palette): PaletteLookup {
+  if (pal.length >= UNSET) {
+    // 用不到：颜色数上限 64。真遇到时退回不共用的表
+    const table = new Uint8Array(0)
+    return { table, fill: (key) => nearest(pal, (key >> 16) & 255, (key >> 8) & 255, key & 255) }
+  }
+  const sig = pal.join(';')
+  if (!lut) lut = new Uint8Array(1 << 24)
+  if (sig !== lutPalette) {
+    lut.fill(UNSET)
+    lutPalette = sig
+  }
+  const table = lut
+  const flat = Int32Array.from(pal.flat())
+  const n = pal.length
+  return {
+    table,
+    fill: (key) => {
+      const r = (key >> 16) & 255
+      const g = (key >> 8) & 255
+      const b = key & 255
+      // 和 nearest 一样：距离相同取下标小的
+      let bi = 0
+      let bd = Infinity
+      for (let j = 0, o = 0; j < n; j++, o += 3) {
+        const dr = r - flat[o]
+        const dg = g - flat[o + 1]
+        const db = b - flat[o + 2]
+        const d = dr * dr + dg * dg + db * db
+        if (d < bd) {
+          bd = d
+          bi = j
+        }
+      }
+      table[key] = bi
+      return bi
+    }
+  }
+}
+
 /** 带缓存的最近色查找（同一调色板反复映射时用） */
 export function nearestLookup(pal: Palette): (r: number, g: number, b: number) => number {
-  const cache = new Map<number, number>()
+  const { table, fill } = paletteLookup(pal)
   return (r, g, b) => {
     const key = (r << 16) | (g << 8) | b
-    let v = cache.get(key)
-    if (v === undefined) {
-      v = nearest(pal, r, g, b)
-      cache.set(key, v)
-    }
-    return v
+    const v = key < table.length ? table[key] : UNSET
+    return v !== UNSET ? v : fill(key)
   }
 }
 

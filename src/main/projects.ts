@@ -1,4 +1,4 @@
-// 项目：配置（project.json）、构思（notes/*.md）、资料（assets/ + assets.json；3D 模型只存引用 models.json）。
+// 项目：配置（project.json）、构思（notes/*.md）、资料（assets/ + assets.json；3D 模型和 2D 资产只存引用 models.json / assets2d.json）。
 import { promises as fs } from 'fs'
 import { ASSET_CATEGORIES, NOTE_CATEGORIES } from '@shared/types'
 import type {
@@ -9,6 +9,7 @@ import type {
   Project,
   ProjectAsset,
   ProjectModel,
+  ProjectAsset2D,
   ProjectSizes,
   ProjectSummary,
   ScalingMode
@@ -26,6 +27,7 @@ import {
 import type { AddResult, Candidate, ImageStore } from './images'
 import { getImage, libraryStore, listStyles } from './library'
 import { listModels as listLibModels } from './models'
+import { listAssets2D as listLibAssets2D } from './assets2d'
 import { asNoteCategory, asNoteTitle, normalizeBlocks, parseNote, serializeNote } from './notesmd'
 import {
   exists,
@@ -124,6 +126,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
         noteCount: await countNotes(name),
         assetCount: assets.length,
         modelCount: (await listProjectModels(name)).length,
+        asset2dCount: (await listProjectAssets2D(name)).length,
         spriteCount: await countSprites(name),
         coverAssetId: p.coverAssetId ?? null,
         updatedAt: p.updatedAt
@@ -522,6 +525,60 @@ export async function forgetModelRefs(modelId: ID): Promise<ID[]> {
   for (const s of await listProjects()) {
     const touched = await modifyJson<ProjectModel[]>(paths.projectModels(s.id), [], (list) => {
       const keep = list.filter((r) => r.modelId !== modelId)
+      if (keep.length === list.length) return false
+      list.splice(0, list.length, ...keep)
+      return true
+    })
+    if (touched) changed.push(s.id)
+  }
+  return changed
+}
+
+// ---------- 2D 资产（引用全局库） ----------
+
+async function readAsset2DRefs(projectId: ID): Promise<ProjectAsset2D[]> {
+  const list = await readJson<ProjectAsset2D[]>(paths.projectAssets2D(projectId), [])
+  return Array.isArray(list) ? list.filter((r) => isSafeId(r?.asset2dId)) : []
+}
+
+/** 本项目引用的 2D 资产；全局库里已经没有的不列出 */
+export async function listProjectAssets2D(projectId: ID): Promise<ProjectAsset2D[]> {
+  const [refs, lib] = await Promise.all([readAsset2DRefs(projectId), listLibAssets2D()])
+  const ids = new Set(lib.map((m) => m.id))
+  return refs.filter((r) => ids.has(r.asset2dId))
+}
+
+/** 引用全局库 2D 资产；已经引用的跳过。返回新加的 */
+export async function addProjectAssets2D(projectId: ID, asset2dIds: ID[]): Promise<ProjectAsset2D[]> {
+  await assertProject(projectId)
+  const lib = new Set((await listLibAssets2D()).map((m) => m.id))
+  for (const id of asset2dIds) if (!lib.has(id)) fail('全局库里没有这个 2D 资产')
+  return updateJson<ProjectAsset2D[], ProjectAsset2D[]>(paths.projectAssets2D(projectId), [], (list) => {
+    const have = new Set(list.map((r) => r.asset2dId))
+    const now = nowIso()
+    const added = [...new Set(asset2dIds)].filter((id) => !have.has(id)).map((asset2dId) => ({ asset2dId, addedAt: now }))
+    list.unshift(...added)
+    return added
+  })
+}
+
+export async function removeProjectAssets2D(projectId: ID, asset2dIds: ID[]): Promise<void> {
+  await assertProject(projectId)
+  const gone = new Set(asset2dIds)
+  await modifyJson<ProjectAsset2D[]>(paths.projectAssets2D(projectId), [], (list) => {
+    const keep = list.filter((r) => !gone.has(r.asset2dId))
+    if (keep.length === list.length) return false
+    list.splice(0, list.length, ...keep)
+    return true
+  })
+}
+
+/** 全局库删掉 2D 资产后，从各项目去掉对它的引用；返回改动过的项目 id */
+export async function forgetAsset2DRefs(asset2dId: ID): Promise<ID[]> {
+  const changed: ID[] = []
+  for (const s of await listProjects()) {
+    const touched = await modifyJson<ProjectAsset2D[]>(paths.projectAssets2D(s.id), [], (list) => {
+      const keep = list.filter((r) => r.asset2dId !== asset2dId)
       if (keep.length === list.length) return false
       list.splice(0, list.length, ...keep)
       return true

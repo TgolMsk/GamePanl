@@ -3,11 +3,12 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, shell, systemPreferences } from 'electron'
 import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
 import { DATA_CHANGED_CHANNEL } from '@shared/api'
-import { SPRITE_VIDEO_EXTENSIONS, type SpriteOwner } from '@shared/sprites'
-import type { AppInfo, DataChange, ID, ImageRef, LibModel } from '@shared/types'
+import { SPRITE_REF_EXTENSIONS, SPRITE_VIDEO_EXTENSIONS, type SpriteOwner } from '@shared/sprites'
+import type { AppInfo, DataChange, ID, ImageRef, LibModel, LibAsset2D } from '@shared/types'
 import { copyImageToClipboard, IMPORT_EXTENSIONS } from './images'
 import * as library from './library'
 import * as models from './models'
+import * as assets2d from './assets2d'
 import * as projects from './projects'
 import * as sprites from './sprites'
 import { encodePng } from './spriteExport'
@@ -50,10 +51,24 @@ async function pickVideos(event: IpcMainInvokeEvent, paths: string[] | undefined
   if (paths) return paths
   const options: OpenDialogOptions = {
     title,
-    message: '选择绿幕动作视频（mp4 / mov），或装着一个角色全部动作视频的文件夹',
+    message: '选择绿幕动作视频（mp4 / mov）和人物图，或装着一个角色全部文件的文件夹',
     buttonLabel: '导入',
     properties: ['openFile', 'openDirectory', 'multiSelections'],
-    filters: [{ name: '视频', extensions: SPRITE_VIDEO_EXTENSIONS }]
+    filters: [{ name: '视频和人物图', extensions: [...SPRITE_VIDEO_EXTENSIONS, ...SPRITE_REF_EXTENSIONS] }]
+  }
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+  return res.canceled ? [] : res.filePaths
+}
+
+async function pickRefImages(event: IpcMainInvokeEvent, paths: string[] | undefined): Promise<string[]> {
+  if (paths) return paths
+  const options: OpenDialogOptions = {
+    title: '添加人物图',
+    message: '选择立绘、三视图、配件参考等图片（PNG / JPG / WebP）',
+    buttonLabel: '添加',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: '图片', extensions: SPRITE_REF_EXTENSIONS }]
   }
   const win = BrowserWindow.fromWebContents(event.sender)
   const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
@@ -79,6 +94,27 @@ async function findModel(id: unknown): Promise<LibModel> {
   const m = await models.getModel(asId(id, '模型 id'))
   if (!m) fail('模型不存在')
   return m
+}
+
+/** 没给路径时弹出系统选择框：图片、JSON 图集或资产文件夹 */
+async function pickAssets2D(event: IpcMainInvokeEvent, paths: string[] | undefined): Promise<string[]> {
+  if (paths) return paths
+  const options: OpenDialogOptions = {
+    title: '添加 2D 资产',
+    message: '选择图片、JSON 图集，或装着动画和图片的资产文件夹',
+    buttonLabel: '添加',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
+    filters: [{ name: '2D 资产', extensions: ['png', 'webp', 'jpg', 'jpeg', 'gif', 'json'] }]
+  }
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+  return res.canceled ? [] : res.filePaths
+}
+
+async function findAsset2D(id: unknown): Promise<LibAsset2D> {
+  const asset = await assets2d.getAsset2D(asId(id, '2D 资产 id'))
+  if (!asset) fail('2D 资产不存在')
+  return asset
 }
 
 /** 上次「拷贝文件夹到…」选的位置，下次默认还在那里 */
@@ -274,6 +310,56 @@ export function registerIpc(): void {
     return models.copyModelTo(m.id, dest, replace)
   })
 
+  // ---------- 全局库 · 2D 资产 ----------
+  handle('library:listAssets2D', () => assets2d.listAssets2D())
+  handle('library:importAssets2D', async (event, paths) => {
+    const r = await assets2d.importAssets2D(await pickAssets2D(event, asOptionalPaths(paths)))
+    if (r.added.length) emit({ kind: 'library-assets2d' })
+    return r
+  })
+  handle('library:updateAsset2D', async (_e, id, patch) => {
+    const m = await assets2d.updateAsset2D(asId(id, '2D 资产 id'), patch)
+    emit({ kind: 'library-assets2d' })
+    return m
+  })
+  handle('library:deleteAsset2D', async (_e, id) => {
+    const mid = asId(id, '2D 资产 id')
+    await assets2d.deleteAsset2D(mid)
+    const touched = await projects.forgetAsset2DRefs(mid)
+    emit({ kind: 'library-assets2d' }, ...touched.map((projectId): DataChange => ({ kind: 'assets2d', projectId })))
+    if (touched.length) emit({ kind: 'projects' })
+  })
+  handle('library:copyAsset2DTo', async (event, id) => {
+    const m = await findAsset2D(id)
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const options: OpenDialogOptions = {
+      title: `拷贝「${m.name}」到…`,
+      message: `会在选中的文件夹里新建「${m.id}」文件夹，里面是完整的 2D 资产`,
+      buttonLabel: '拷贝到这里',
+      defaultPath: lastCopyDir,
+      properties: ['openDirectory', 'createDirectory']
+    }
+    const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    const dest = res.canceled ? undefined : res.filePaths[0]
+    if (!dest) return null
+    lastCopyDir = dest
+    let replace = false
+    if (await assets2d.copyAsset2DTargetExists(m.id, dest)) {
+      const box = {
+        type: 'warning' as const,
+        message: `这里已经有「${m.id}」了`,
+        detail: '替换会把原来的文件夹移到废纸篓。',
+        buttons: ['替换', '保留两者', '取消'],
+        defaultId: 1,
+        cancelId: 2
+      }
+      const { response } = win ? await dialog.showMessageBox(win, box) : await dialog.showMessageBox(box)
+      if (response === 2) return null
+      replace = response === 0
+    }
+    return assets2d.copyAsset2DTo(m.id, dest, replace)
+  })
+
   // ---------- 项目 ----------
   handle('projects:list', () => projects.listProjects())
   handle('projects:get', (_e, id) => projects.getProject(asId(id)))
@@ -375,6 +461,24 @@ export function registerIpc(): void {
     emit({ kind: 'models', projectId: pid }, { kind: 'projects' })
   })
 
+  // ---------- 项目 · 2D 资产 ----------
+  handle('projects:listAssets2D', async (_e, projectId) => {
+    const pid = asId(projectId)
+    await projects.assertProject(pid)
+    return projects.listProjectAssets2D(pid)
+  })
+  handle('projects:addAssets2D', async (_e, projectId, ids) => {
+    const pid = asId(projectId)
+    const added = await projects.addProjectAssets2D(pid, asIds(ids, '2D 资产 id'))
+    if (added.length) emit({ kind: 'assets2d', projectId: pid }, { kind: 'projects' })
+    return added
+  })
+  handle('projects:removeAssets2D', async (_e, projectId, ids) => {
+    const pid = asId(projectId)
+    await projects.removeProjectAssets2D(pid, asIds(ids, '2D 资产 id'))
+    emit({ kind: 'assets2d', projectId: pid }, { kind: 'projects' })
+  })
+
   // ---------- 序列帧（项目里的，或全局库的：owner 为 null） ----------
   const spritesChanged = (pid: SpriteOwner, projectList = false): void => {
     emit({ kind: 'sprites', projectId: pid })
@@ -391,22 +495,131 @@ export function registerIpc(): void {
     const pid = await asOwner(projectId)
     return sprites.listCharacters(pid)
   })
-  handle('sprites:create', async (event, projectId, paths, height) => {
+  handle('sprites:create', async (event, projectId, paths, opts) => {
     const pid = await asOwner(projectId)
-    const files = await pickVideos(event, asOptionalPaths(paths), '导入动作视频')
-    if (files.length === 0) return { created: [], merged: [], skipped: [] }
-    const r = await sprites.createCharacters(pid, files, height === undefined || height === null ? undefined : asInt(height, '像素身高', 8, 512))
+    const files = await pickVideos(event, asOptionalPaths(paths), '导入动作视频和人物图')
+    if (files.length === 0) return { created: [], merged: [], placed: [], refs: 0, skipped: [] }
+    const o = opts === undefined || opts === null ? {} : asObject(opts, '导入选项')
+    const height = o['height'] === undefined || o['height'] === null ? undefined : asInt(o['height'], '像素身高', 8, 512)
+    let target: sprites.ImportTarget | null = null
+    if (o['target'] !== undefined && o['target'] !== null) {
+      const t = asObject(o['target'], '导入目标')
+      target = { id: asId(t['id'], '角色 id'), actionId: t['actionId'] === null || t['actionId'] === undefined ? null : asId(t['actionId'], '动作 id') }
+    }
+    const r = await sprites.importFiles(pid, files, { height, target })
     if (r.created.length || r.merged.length) spritesChanged(pid, true)
     return r
   })
-  handle('sprites:addActions', async (event, projectId, id, paths) => {
+  handle('sprites:addActions', async (event, projectId, id, paths, actionId) => {
     const pid = await asOwner(projectId)
     const cid = asId(id, '角色 id')
     await sprites.getCharacter(pid, cid)
     const files = await pickVideos(event, asOptionalPaths(paths), '添加动作视频')
-    const r = await sprites.addActions(pid, cid, files)
-    if (r.added.length) spritesChanged(pid)
+    const r = await sprites.addToCharacter(pid, cid, files, actionId === undefined || actionId === null ? null : asId(actionId, '动作 id'))
+    if (r.placed.length || r.refs) spritesChanged(pid)
     return r
+  })
+  handle('sprites:addRefs', async (event, projectId, id, paths) => {
+    const pid = await asOwner(projectId)
+    const cid = asId(id, '角色 id')
+    await sprites.getCharacter(pid, cid)
+    const files = await pickRefImages(event, asOptionalPaths(paths))
+    const r = await sprites.addRefs(pid, cid, files)
+    if (r.added) spritesChanged(pid)
+    return r
+  })
+  handle('sprites:addRefsFromImages', async (_e, projectId, id, refs) => {
+    const pid = await asOwner(projectId)
+    const cid = asId(id, '角色 id')
+    if (!Array.isArray(refs) || refs.length > 200) fail('图片列表不对')
+    const files: string[] = []
+    for (const ref of refs) files.push((await findImage(ref)).path)
+    const r = await sprites.addRefs(pid, cid, files)
+    if (r.added) spritesChanged(pid)
+    return r
+  })
+  handle('sprites:deleteRef', async (_e, projectId, id, refId) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.deleteRef(pid, asId(id, '角色 id'), asId(refId, '人物图 id'))
+    spritesChanged(pid)
+    return c
+  })
+  const findRef = async (projectId: unknown, id: unknown, refId: unknown): Promise<string> => {
+    const pid = await asOwner(projectId)
+    const p = await sprites.refPath(pid, asId(id, '角色 id'), asId(refId, '人物图 id'))
+    if (!p) fail('这张人物图不见了')
+    return p
+  }
+  handle('sprites:copyRef', async (_e, projectId, id, refId) => {
+    const p = await findRef(projectId, id, refId)
+    const img = nativeImage.createFromPath(p)
+    if (img.isEmpty()) fail('读不出这张图')
+    const { width, height } = img.getSize()
+    return copyImageToClipboard(p, width, height)
+  })
+  handle('sprites:revealRef', async (_e, projectId, id, refId) => {
+    shell.showItemInFolder(await findRef(projectId, id, refId))
+  })
+  handle('sprites:dragRef', async (event, projectId, id, refId) => {
+    const p = await findRef(projectId, id, refId)
+    let icon = nativeImage.createFromPath(p)
+    icon = icon.isEmpty() ? await app.getFileIcon(p, { size: 'normal' }) : icon.resize({ width: 96 })
+    event.sender.startDrag({ file: p, icon })
+  })
+  handle('sprites:saveAnchor', async (_e, projectId, id, facing, from, png) => {
+    const pid = await asOwner(projectId)
+    let buf: Buffer | null = null
+    if (png !== null && png !== undefined) {
+      if (!(png instanceof Uint8Array) || png.byteLength === 0 || png.byteLength > 40 * 1024 * 1024) fail('首帧图不对')
+      buf = Buffer.from(png.buffer, png.byteOffset, png.byteLength)
+    }
+    const c = await sprites.saveAnchor(pid, asId(id, '角色 id'), facing, from, buf)
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:addPlanned', async (_e, projectId, id, names, group) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.addPlanned(pid, asId(id, '角色 id'), names, group === undefined || group === null ? null : asId(group, '分组 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:applyTemplate', async (_e, projectId, id, templateId) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.applyTemplate(pid, asId(id, '角色 id'), templateId)
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:useTake', async (_e, projectId, id, actionId, takeId) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.useTake(pid, asId(id, '角色 id'), asId(actionId, '动作 id'), asId(takeId, '版本 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:deleteTake', async (_e, projectId, id, actionId, takeId) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.deleteTake(pid, asId(id, '角色 id'), asId(actionId, '动作 id'), asId(takeId, '版本 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:splitTake', async (_e, projectId, id, actionId, takeId) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.splitTake(pid, asId(id, '角色 id'), asId(actionId, '动作 id'), asId(takeId, '版本 id'))
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:extractAction', async (_e, projectId, id, actionId, name, group) => {
+    const pid = await asOwner(projectId)
+    const c = await sprites.extractAction(pid, asId(id, '角色 id'), asId(actionId, '动作 id'), name, group)
+    spritesChanged(pid)
+    return c
+  })
+  handle('sprites:fromAsset2D', async (_e, projectId, assetId) => {
+    const pid = await asOwner(projectId)
+    const asset = await findAsset2D(assetId)
+    const files = await assets2d.characterImages(asset.id)
+    const c = await sprites.createFromImages(pid, asset.name, files, asset.id)
+    spritesChanged(pid, true)
+    return c
   })
   handle('sprites:update', async (_e, projectId, id, patch) => {
     const pid = await asOwner(projectId)
@@ -443,10 +656,17 @@ export function registerIpc(): void {
     await sprites.deleteCharacter(pid, asId(id, '角色 id'))
     spritesChanged(pid, true)
   })
-  handle('sprites:export', async (_e, projectId, id, payload, dir) => {
+  handle('sprites:export', async (_e, projectId, id, payload, dir, names) => {
     const pid = await asOwner(projectId)
-    const r = await sprites.exportCharacter(pid, asId(id, '角色 id'), payload, asString(dir, '导出目录', 4096), app.getVersion())
+    const r = await sprites.exportCharacter(pid, asId(id, '角色 id'), payload, dir === null ? null : asString(dir, '导出目录', 4096), app.getVersion(), names)
     spritesChanged(pid)
+    if (r.assets2d.length) {
+      emit({ kind: 'library-assets2d' })
+      // 项目里的角色：存进库的资产同时加到这个项目的「2D 资产」（已有引用时不重复）
+      if (pid !== null && (await projects.addProjectAssets2D(pid, r.assets2d.map((x) => x.id))).length) {
+        emit({ kind: 'assets2d', projectId: pid }, { kind: 'projects' })
+      }
+    }
     if (r.assets && pid === null) emit({ kind: 'library-images' }, { kind: 'library-styles' })
     else if (r.assets && pid !== null) emit({ kind: 'assets', projectId: pid }, { kind: 'projects' })
     return r
@@ -505,6 +725,26 @@ export function registerIpc(): void {
     if (preview) {
       const img = nativeImage.createFromPath(preview)
       if (!img.isEmpty()) icon = img.resize({ width: 96 })
+    }
+    if (icon.isEmpty()) icon = await app.getFileIcon(dir, { size: 'normal' })
+    event.sender.startDrag({ file: dir, icon })
+  })
+
+  handle('shell:revealAsset2D', async (_e, id) => {
+    const asset = await findAsset2D(id)
+    shell.showItemInFolder(assets2d.asset2dDir(asset.id))
+  })
+  handle('shell:dragAsset2D', async (event, id) => {
+    const asset = await findAsset2D(id)
+    const dir = assets2d.asset2dDir(asset.id)
+    if (!(await exists(dir))) fail('2D 资产文件夹不见了')
+    let icon = nativeImage.createEmpty()
+    if (asset.preview) {
+      try {
+        icon = await nativeImage.createThumbnailFromPath(assets2d.asset2dFilePath(asset.id, asset.preview), { width: 96, height: 96 })
+      } catch {
+        // 没有可读的预览图时用系统文件夹图标
+      }
     }
     if (icon.isEmpty()) icon = await app.getFileIcon(dir, { size: 'normal' })
     event.sender.startDrag({ file: dir, icon })

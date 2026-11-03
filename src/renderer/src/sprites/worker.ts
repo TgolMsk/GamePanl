@@ -23,6 +23,9 @@ async function handle(req: WorkerRequest): Promise<{ result: unknown; transfer: 
     case 'release':
       pipelines.delete(req.key)
       return { result: null, transfer: [] }
+    case 'trim':
+      pipelines.get(req.key)?.trim()
+      return { result: null, transfer: [] }
     case 'analyze':
       return { result: await pipelineOf(req.key).analyze(req.options as AnalyzeOptions), transfer: [] }
     case 'samples': {
@@ -38,6 +41,10 @@ async function handle(req: WorkerRequest): Promise<{ result: unknown; transfer: 
     case 'source': {
       const r = await pipelineOf(req.key).sourceImage(req.frame, req.crop, req.maxSide)
       return { result: r, transfer: [r.rgba.buffer] }
+    }
+    case 'colorSample': {
+      const s = pipelineOf(req.key).colorSample().slice()
+      return { result: s, transfer: [s.buffer] }
     }
     case 'timeline': {
       const r = await pipelineOf(req.key).timeline(req.height)

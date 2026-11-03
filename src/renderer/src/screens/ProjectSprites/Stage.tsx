@@ -1,9 +1,12 @@
 // 中间栏：预览（放大、背景、落脚点、对比源视频）+ 像素调节 + 帧条（删帧、换相邻源帧）+ 源视频时间轴（拖动选片段）。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { Button, Icon, Segmented, Stepper, cx } from '@renderer/ui'
-import { sourceFrame, timelineThumbs, type ActionOutput, type ActionPhase } from '@renderer/sprites/engine'
-import type { SpriteAction, SpriteFrameEdit } from '@shared/sprites'
+import { menuSeparator, showContextMenu } from '@renderer/app/contextMenu'
+import { hud } from '@renderer/app/hud'
+import { showError } from '@renderer/screens/Library/shared'
+import { Button, ConfirmSheet, Icon, Segmented, Stepper, cx } from '@renderer/ui'
+import { actionKey, scoreTake, sourceFrame, takeScoreKey, timelineThumbs, useTakeScores, type ActionOutput, type ActionPhase } from '@renderer/sprites/engine'
+import { actionFacing, anchorRef, type SpriteAction, type SpriteCharacter, type SpriteFrameEdit, type SpriteOwner, type SpriteTake } from '@shared/sprites'
 import { BitmapView, prepCanvas, toBitmap, useBitmaps } from './draw'
 
 export type StageBg = 'checker' | 'gray' | 'black' | 'white'
@@ -49,6 +52,8 @@ export function setEdit(edits: SpriteFrameEdit[], base: number, to: number | nul
 }
 
 export interface StageProps {
+  owner: SpriteOwner
+  ch: SpriteCharacter
   action: SpriteAction
   out: ActionOutput | undefined
   phase: ActionPhase | undefined
@@ -60,6 +65,11 @@ export interface StageProps {
   onEdits: (edits: SpriteFrameEdit[]) => void
   onSegment: (start: number | null, end: number | null) => void
   onRetry: () => void
+  onChange: (character: SpriteCharacter) => void
+  onAddVersion: () => void
+  onPrompt: () => void
+  /** 从同一个视频再抽一个动作 */
+  onExtract: () => void
   stageRef: React.RefObject<HTMLElement | null>
   /** 预览上方的像素调节条 */
   pixelBar?: React.ReactNode
@@ -151,7 +161,13 @@ export function Stage(p: StageProps): React.JSX.Element {
             对比原片
           </Button>
         </div>
+        <div className="g">
+          <Button size="sm" variant="plain" icon="sparkles" onClick={p.onPrompt}>
+            提示词
+          </Button>
+        </div>
       </div>
+      <VersionBar key={p.action.id} {...p} />
       {p.pixelBar}
       <div ref={viewRef} className={cx('sp-view', prefs.bg !== 'checker' && `bg-${prefs.bg}`)}>
         {view}
@@ -159,6 +175,119 @@ export function Stage(p: StageProps): React.JSX.Element {
       {out && <FrameStrip {...p} out={out} bitmaps={bitmaps} i={i} />}
       {out && <Timeline {...p} out={out} i={i} />}
     </section>
+  )
+}
+
+/** 视频版本各自保存片段和换帧记录，选中的版本参与预览和导出。有定妆照时每个版本显示和定妆照的相似度。 */
+function VersionBar(p: StageProps): React.JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const running = useRef(false)
+  const [remove, setRemove] = useState<SpriteTake | null>(null)
+  const { action, owner, ch } = p
+  const multiple = action.takes.length >= 2
+  const anchor = anchorRef(ch, actionFacing(ch.view, action.name))
+  const scores = useTakeScores()
+  useEffect(() => {
+    if (!multiple || !anchor) return
+    for (const take of action.takes) if (take.video !== action.video) scoreTake(owner, ch, action, take)
+  }, [multiple, anchor, owner, ch, action])
+  /** 0–1；还在算时 NaN；没有定妆照或算不出时 null */
+  const scoreOf = (take: SpriteTake): number | null => {
+    if (!anchor) return null
+    if (take.video === action.video) return p.out && p.out.key === actionKey(owner, ch, action) ? p.out.anchorScore : Number.NaN
+    return scores[takeScoreKey(owner, ch, action, take, anchor.id)] ?? Number.NaN
+  }
+  const known = multiple ? action.takes.map(scoreOf).filter((s): s is number => s !== null && !Number.isNaN(s)) : []
+  const best = known.length >= 2 ? Math.max(...known) : null
+
+  const run = async (task: () => Promise<SpriteCharacter>, message?: string): Promise<boolean> => {
+    if (running.current) return false
+    running.current = true
+    setBusy(true)
+    try {
+      const next = await task()
+      p.setPlaying(false)
+      p.setCur(0)
+      p.onChange(next)
+      if (message) hud.show(message, { ok: true })
+      return true
+    } catch (err) {
+      showError('更新版本失败', err)
+      return false
+    } finally {
+      running.current = false
+      setBusy(false)
+    }
+  }
+
+  const use = (take: SpriteTake): void => {
+    if (take.video === action.video) return
+    void run(() => window.gp.sprites.useTake(owner, ch.id, action.id, take.id))
+  }
+
+  const menu = async (e: React.MouseEvent, take: SpriteTake): Promise<void> => {
+    if (running.current) {
+      e.preventDefault()
+      return
+    }
+    const picked = await showContextMenu(e, [
+      { id: 'use', label: '使用这个版本', enabled: take.video !== action.video },
+      { id: 'split', label: '拆成单独动作' },
+      menuSeparator,
+      { id: 'delete', label: '删除这个版本', destructive: true }
+    ])
+    if (picked === 'use') use(take)
+    else if (picked === 'split') void run(() => window.gp.sprites.splitTake(owner, ch.id, action.id, take.id), '已拆成单独动作')
+    else if (picked === 'delete') setRemove(take)
+  }
+
+  return (
+    <div className="sp-versions" role="group" aria-label="动作视频版本" aria-busy={busy}>
+      {multiple && <span className="lbl">视频版本</span>}
+      {multiple && action.takes.map((take, index) => {
+        const score = scoreOf(take)
+        const pct = score === null || Number.isNaN(score) ? null : Math.round(score * 100)
+        return (
+          <button
+            key={take.id}
+            type="button"
+            className={cx('sp-version', take.video === action.video && 'on')}
+            aria-pressed={take.video === action.video}
+            title={pct === null ? take.sourceName : `${take.sourceName} · 和定妆照相似 ${pct}%`}
+            disabled={busy}
+            onClick={() => use(take)}
+            onContextMenu={(e) => void menu(e, take)}
+          >
+            版本 {index + 1}
+            {score !== null && <span className="sp-version-score">{pct === null ? '…' : `${pct}%`}</span>}
+            {best !== null && score === best && <span className="sp-version-best">最像</span>}
+          </button>
+        )
+      })}
+      <Button
+        size="sm"
+        variant="plain"
+        icon="plus"
+        onClick={p.onAddVersion}
+        disabled={busy}
+        aria-label="添加新版本视频"
+        title="AI 生成不满意时再生成一个，导进来对比"
+      >
+        {multiple ? undefined : '新版本'}
+      </Button>
+      <ConfirmSheet
+        open={remove !== null}
+        title="删除这个版本？"
+        message={remove ? `「${remove.sourceName}」会从「${action.name}」中删除${remove.video === action.video ? '，并切换到其他版本' : ''}。` : undefined}
+        confirmLabel="删除版本"
+        destructive
+        onCancel={() => setRemove(null)}
+        onConfirm={async () => {
+          if (!remove) return
+          if (await run(() => window.gp.sprites.deleteTake(owner, ch.id, action.id, remove.id), '已删除版本')) setRemove(null)
+        }}
+      />
+    </div>
   )
 }
 
@@ -464,6 +593,9 @@ function Timeline(p: StageProps & { out: ActionOutput; i: number }): React.JSX.E
             自动选片段
           </Button>
         )}
+        <Button size="sm" variant="plain" icon="plus" onClick={p.onExtract} title="一个视频里有好几个动作时：再建一个动作，用同一个视频，在时间轴上选另一段">
+          再抽一个动作…
+        </Button>
       </div>
       <div ref={boxRef} className="sp-tlbox" onClick={onClick}>
         <canvas ref={canvasRef} />

@@ -36,7 +36,12 @@ const api: GpApi = {
     updateModel: call('library:updateModel') as GpApi['library']['updateModel'],
     deleteModel: call('library:deleteModel') as GpApi['library']['deleteModel'],
     setModelPreview: call('library:setModelPreview') as GpApi['library']['setModelPreview'],
-    copyModelTo: call('library:copyModelTo') as GpApi['library']['copyModelTo']
+    copyModelTo: call('library:copyModelTo') as GpApi['library']['copyModelTo'],
+    listAssets2D: call('library:listAssets2D') as GpApi['library']['listAssets2D'],
+    importAssets2D: call('library:importAssets2D') as GpApi['library']['importAssets2D'],
+    updateAsset2D: call('library:updateAsset2D') as GpApi['library']['updateAsset2D'],
+    deleteAsset2D: call('library:deleteAsset2D') as GpApi['library']['deleteAsset2D'],
+    copyAsset2DTo: call('library:copyAsset2DTo') as GpApi['library']['copyAsset2DTo']
   },
   projects: {
     list: call('projects:list') as GpApi['projects']['list'],
@@ -57,12 +62,29 @@ const api: GpApi = {
     deleteAsset: call('projects:deleteAsset') as GpApi['projects']['deleteAsset'],
     listModels: call('projects:listModels') as GpApi['projects']['listModels'],
     addModels: call('projects:addModels') as GpApi['projects']['addModels'],
-    removeModels: call('projects:removeModels') as GpApi['projects']['removeModels']
+    removeModels: call('projects:removeModels') as GpApi['projects']['removeModels'],
+    listAssets2D: call('projects:listAssets2D') as GpApi['projects']['listAssets2D'],
+    addAssets2D: call('projects:addAssets2D') as GpApi['projects']['addAssets2D'],
+    removeAssets2D: call('projects:removeAssets2D') as GpApi['projects']['removeAssets2D']
   },
   sprites: {
     list: call('sprites:list') as GpApi['sprites']['list'],
     create: call('sprites:create') as GpApi['sprites']['create'],
     addActions: call('sprites:addActions') as GpApi['sprites']['addActions'],
+    addRefs: call('sprites:addRefs') as GpApi['sprites']['addRefs'],
+    addRefsFromImages: call('sprites:addRefsFromImages') as GpApi['sprites']['addRefsFromImages'],
+    deleteRef: call('sprites:deleteRef') as GpApi['sprites']['deleteRef'],
+    copyRef: call('sprites:copyRef') as GpApi['sprites']['copyRef'],
+    revealRef: call('sprites:revealRef') as GpApi['sprites']['revealRef'],
+    dragRef: call('sprites:dragRef') as GpApi['sprites']['dragRef'],
+    saveAnchor: call('sprites:saveAnchor') as GpApi['sprites']['saveAnchor'],
+    addPlanned: call('sprites:addPlanned') as GpApi['sprites']['addPlanned'],
+    applyTemplate: call('sprites:applyTemplate') as GpApi['sprites']['applyTemplate'],
+    useTake: call('sprites:useTake') as GpApi['sprites']['useTake'],
+    deleteTake: call('sprites:deleteTake') as GpApi['sprites']['deleteTake'],
+    splitTake: call('sprites:splitTake') as GpApi['sprites']['splitTake'],
+    extractAction: call('sprites:extractAction') as GpApi['sprites']['extractAction'],
+    fromAsset2D: call('sprites:fromAsset2D') as GpApi['sprites']['fromAsset2D'],
     update: call('sprites:update') as GpApi['sprites']['update'],
     updateAction: call('sprites:updateAction') as GpApi['sprites']['updateAction'],
     applyParamsToAll: call('sprites:applyParamsToAll') as GpApi['sprites']['applyParamsToAll'],
@@ -83,7 +105,9 @@ const api: GpApi = {
     openImage: call('shell:openImage') as GpApi['shell']['openImage'],
     dragImage: call('shell:dragImage') as GpApi['shell']['dragImage'],
     revealModel: call('shell:revealModel') as GpApi['shell']['revealModel'],
-    dragModel: call('shell:dragModel') as GpApi['shell']['dragModel']
+    dragModel: call('shell:dragModel') as GpApi['shell']['dragModel'],
+    revealAsset2D: call('shell:revealAsset2D') as GpApi['shell']['revealAsset2D'],
+    dragAsset2D: call('shell:dragAsset2D') as GpApi['shell']['dragAsset2D']
   },
   update: {
     getState: call('update:getState') as GpApi['update']['getState'],
